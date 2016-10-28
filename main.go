@@ -6,6 +6,9 @@ import (
 	"net/http"
 )
 
+var numberOfProxyWorkers = 5
+var workPool = make(chan bool, numberOfProxyWorkers)
+
 func copyHeaders(dst, src http.Header) {
 	for k := range src {
 		dst.Del(k)
@@ -17,18 +20,30 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
+func proxyRequest(destination string, w http.ResponseWriter, complete chan<- bool) {
+	log.Println("Got request destination")
+	resp, err := http.Get(destination)
+	if err != nil {
+		log.Fatalln("Proxy: ", err.Error())
+	}
+	defer resp.Body.Close()
+	copyHeaders(w.Header(), resp.Header)
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		log.Fatalln("Proxy: ", err.Error())
+	}
+	log.Println("Workpool:", len(workPool), "Done ", destination)
+
+	<-workPool
+	complete <- true
+}
+
 func handleVia(request, destination string) {
 	h := func(w http.ResponseWriter, r *http.Request) {
-		resp, err := http.Get(destination)
-		if err != nil {
-			log.Fatalln("Proxy: ", err.Error())
-		}
-		defer resp.Body.Close()
-		copyHeaders(w.Header(), resp.Header)
-		_, err = io.Copy(w, resp.Body)
-		if err != nil {
-			log.Fatalln("Proxy: ", err.Error())
-		}
+		complete := make(chan bool)
+		workPool <- true
+		go proxyRequest(destination, w, complete)
+		<-complete
 	}
 	http.HandleFunc(request, h)
 }
