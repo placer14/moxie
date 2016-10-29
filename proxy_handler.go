@@ -1,4 +1,4 @@
-package main
+package proxy_handler
 
 import (
 	"io"
@@ -29,7 +29,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (p *ProxyHandler) handleVia(request, destination string) {
+func (p *ProxyHandler) HandleVia(request, destination string) {
 	h := func(w http.ResponseWriter, r *http.Request) {
 		complete := make(chan bool)
 		workPool <- true
@@ -71,11 +71,4 @@ func proxyRequest(destination string, w http.ResponseWriter, complete chan<- boo
 
 	<-workPool
 	complete <- true
-}
-
-func main() {
-	p := NewProxyHandler()
-	p.handleVia("/", "http://google.com")
-	p.handleVia("/foo", "http://reddit.com")
-	log.Fatalln(http.ListenAndServe(":8080", p))
 }
