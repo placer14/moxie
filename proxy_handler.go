@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 )
 
@@ -29,14 +30,14 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (p *ProxyHandler) HandleVia(request, destination string) {
+func (p *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
 	h := func(w http.ResponseWriter, r *http.Request) {
 		complete := make(chan bool)
 		workPool <- true
-		go proxyRequest(destination, w, complete)
+		go handleRequest(r, w, proxyOverride, complete)
 		<-complete
 	}
-	r, err := regexp.Compile(request)
+	r, err := regexp.Compile(endpoint)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -55,20 +56,34 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
-func proxyRequest(destination string, w http.ResponseWriter, complete chan<- bool) {
-	log.Println("Got request destination")
-	resp, err := http.Get(destination)
+func handleRequest(r *http.Request, w http.ResponseWriter, proxyOverride *url.URL, complete chan<- bool) {
+	var resp *http.Response
+	var err error
+
+	c := &http.Client{}
+	proxyUrl := r.URL
+	proxyUrl.Host = proxyOverride.Host
+
+	log.Printf("Got request: %s\n\tAsking for: %s\n", r.URL.String(), proxyUrl.String())
+	switch r.Method {
+	case http.MethodGet:
+		resp, err = c.Get(proxyUrl.String())
+	default:
+		log.Println("Unknown method", r.Method)
+	}
+
 	if err != nil {
-		log.Fatalln("Proxy: ", err.Error())
+		log.Fatalln("Request:", err.Error())
 	}
 	defer resp.Body.Close()
-	copyHeaders(w.Header(), resp.Header)
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Fatalln("Proxy: ", err.Error())
-	}
-	log.Println("Workpool:", len(workPool), "Done ", destination)
 
+	copyHeaders(w.Header(), resp.Header)
+	bodyLen, err := io.Copy(w, resp.Body)
+	if err != nil {
+		log.Fatalln("Body:", err.Error())
+	}
+
+	log.Printf("Completed request: %s. Wrote %d bytes", r.URL.String(), bodyLen)
 	<-workPool
 	complete <- true
 }
