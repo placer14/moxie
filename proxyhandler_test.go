@@ -35,7 +35,30 @@ func TestBodyTransfer(t *testing.T) {
 	}
 }
 
-func TestHeaderTransfer(t *testing.T) {
+func TestRequestHeaderTransfer(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	expectedHeader := http.Header{
+		"X-Foo": []string{"IMPORTANT"},
+		"X-Bar": []string{"here; are_some; headers"},
+	}
+	httpmock.RegisterResponder("GET", "http://hostname/", func(r *http.Request) (*http.Response, error) {
+		if !reflect.DeepEqual(r.Header, expectedHeader) {
+			t.Error("Unexpected headers")
+			t.Log("Expected:", expectedHeader)
+			t.Log("Actual:", r.Header)
+		}
+		return httpmock.NewStringResponse(200, ""), nil
+	})
+	req := httptest.NewRequest("GET", "http://hostname/", nil)
+	req.Header = expectedHeader
+
+	h := handler.New()
+	h.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestResponseHeaderTransfer(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -58,8 +81,8 @@ func TestHeaderTransfer(t *testing.T) {
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
 		t.Error("Unexpected headers")
-		t.Log("Expected: ", expectedHeader)
-		t.Log("Actual: ", recorder.Header())
+		t.Log("Expected:", expectedHeader)
+		t.Log("Actual:", recorder.Header())
 	}
 }
 

@@ -82,6 +82,7 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	if err != nil {
 		log.Println("Proxy error", err.Error())
 	}
+	copyHeaders(req.Header, r.Header)
 	return req
 }
 
