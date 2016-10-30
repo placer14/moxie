@@ -73,7 +73,7 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	proxyBody, err := ioutil.ReadAll(r.Body)
 	req, err := http.NewRequest(r.Method, proxyRequestUrl.String(), strings.NewReader(string(proxyBody)))
 	if err != nil {
-		log.Println("proxyRequest:", err.Error())
+		log.Println("Proxy error", err.Error())
 	}
 	return req
 }
@@ -87,17 +87,13 @@ func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.UR
 	c := &http.Client{}
 	resp, err = c.Do(proxiedRequest)
 	if err != nil {
-		log.Println("Doing request:", err.Error())
+		log.Println("Proxy error", err.Error())
 	}
 	defer resp.Body.Close()
-	_, err = io.Copy(w, resp.Body)
 	copyHeaders(w.Header(), resp.Header)
+	_, err = io.Copy(w, resp.Body)
 	if err != nil {
-		log.Fatalln("Body:", err.Error())
-	}
-
-	if err != nil {
-		log.Fatalln("Request:", err.Error())
+		log.Fatalln("Proxy error", err.Error())
 	}
 
 	<-workPool
