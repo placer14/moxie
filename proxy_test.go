@@ -17,8 +17,8 @@ func TestBodyTransfer(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	expectedBody := "This is the expected body"
-	httpmock.RegisterResponder("GET", "/", httpmock.NewStringResponder(200, expectedBody))
-	req := httptest.NewRequest("GET", "/", nil)
+	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewStringResponder(200, expectedBody))
+	req := httptest.NewRequest("GET", "http://hostname/", nil)
 	recorder := httptest.NewRecorder()
 
 	h := handler.New()
@@ -49,9 +49,9 @@ func TestHeaderTransfer(t *testing.T) {
 		Header: expectedHeader,
 		Body:   httpmock.NewRespBodyFromString(""),
 	})
-	httpmock.RegisterResponder("GET", "/", mockResponder)
+	httpmock.RegisterResponder("GET", "http://hostname/", mockResponder)
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "http://hostname/", nil)
 
 	h := handler.New()
 	h.ServeHTTP(recorder, req)
@@ -69,7 +69,7 @@ func TestPostMethod(t *testing.T) {
 
 	expectedPostBody := `{"some":"json"}`
 	success := false
-	httpmock.RegisterResponder("POST", "/", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("POST", "http://hostname/", func(r *http.Request) (*http.Response, error) {
 		success = true
 		actualBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -82,7 +82,7 @@ func TestPostMethod(t *testing.T) {
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("POST", "/", strings.NewReader(expectedPostBody))
+	req := httptest.NewRequest("POST", "http://hostname/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
 	h := handler.New()
@@ -97,11 +97,11 @@ func TestRedirectHost(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	success := false
-	httpmock.RegisterResponder("GET", "//google.com/foo", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("GET", "http://google.com/foo", func(r *http.Request) (*http.Response, error) {
 		success = true
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("GET", "/foo", nil)
+	req := httptest.NewRequest("GET", "http://hostname/foo", nil)
 	recorder := httptest.NewRecorder()
 
 	h := handler.New()

@@ -67,6 +67,9 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	if proxyOverride.Host != "" {
 		proxyRequestUrl.Host = proxyOverride.Host
 	}
+	if proxyRequestUrl.Scheme == "" && r.URL.IsAbs() {
+		proxyRequestUrl.Scheme = "http"
+	}
 	proxyBody, err := ioutil.ReadAll(r.Body)
 	req, err := http.NewRequest(r.Method, proxyRequestUrl.String(), strings.NewReader(string(proxyBody)))
 	if err != nil {

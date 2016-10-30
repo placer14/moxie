@@ -10,7 +10,7 @@ import (
 func main() {
 	p := proxy_handler.New()
 	proxyEndpoints := map[string]string{
-		"/":    "http://reddit.com",
+		"^/$":  "http://reddit.com",
 		"/foo": "http://cnn.com",
 	}
 	for endpoint, override := range proxyEndpoints {
