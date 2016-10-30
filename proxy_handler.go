@@ -2,10 +2,12 @@ package proxy_handler
 
 import (
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 var numberOfProxyWorkers = 5
@@ -59,36 +61,41 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
+func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
+	proxyRequestUrl := r.URL
+	if proxyOverride.Host != "" {
+		proxyRequestUrl.Host = proxyOverride.Host
+	}
+	proxyBody, err := ioutil.ReadAll(r.Body)
+	req, err := http.NewRequest(r.Method, proxyRequestUrl.String(), strings.NewReader(string(proxyBody)))
+	if err != nil {
+		log.Println("proxyRequest:", err.Error())
+	}
+	return req
+}
+
 func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.URL, complete chan<- bool) {
 	var resp *http.Response
 	var err error
 
+	proxiedRequest := proxyRequest(r, proxyOverride)
+	log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
 	c := &http.Client{}
-	proxyUrl := r.URL
-	if proxyOverride.Host != "" {
-		proxyUrl.Host = proxyOverride.Host
+	resp, err = c.Do(proxiedRequest)
+	if err != nil {
+		log.Println("Doing request:", err.Error())
 	}
-
-	log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxyUrl.String())
-	switch r.Method {
-	case http.MethodGet:
-		resp, err = c.Get(proxyUrl.String())
-	default:
-		log.Println("Unknown method", r.Method)
+	defer resp.Body.Close()
+	_, err = io.Copy(w, resp.Body)
+	copyHeaders(w.Header(), resp.Header)
+	if err != nil {
+		log.Fatalln("Body:", err.Error())
 	}
 
 	if err != nil {
 		log.Fatalln("Request:", err.Error())
 	}
-	defer resp.Body.Close()
 
-	copyHeaders(w.Header(), resp.Header)
-	bodyLen, err := io.Copy(w, resp.Body)
-	if err != nil {
-		log.Fatalln("Body:", err.Error())
-	}
-
-	log.Printf("Completed request %s. Wrote %d bytes", r.URL.String(), bodyLen)
 	<-workPool
 	complete <- true
 }

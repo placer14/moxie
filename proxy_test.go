@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -58,5 +59,34 @@ func TestHeaderTransfer(t *testing.T) {
 		t.Error("Unexpected headers")
 		t.Log("Expected: ", expectedHeader)
 		t.Log("Actual: ", recorder.Header())
+	}
+}
+
+func TestPostMethod(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	expectedPostBody := `{"some":"json"}`
+	success := false
+	httpmock.RegisterResponder("POST", "/", func(r *http.Request) (*http.Response, error) {
+		success = true
+		actualBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal("Response body unreadable:", err.Error())
+		}
+		if expectedPostBody != string(actualBody) {
+			t.Error("Body did not match")
+			t.Log("Expected:", expectedPostBody)
+			t.Log("Actual:", string(actualBody))
+		}
+		return httpmock.NewStringResponse(200, ""), nil
+	})
+	req := httptest.NewRequest("POST", "/", strings.NewReader(expectedPostBody))
+	recorder := httptest.NewRecorder()
+
+	h := handler.NewProxyHandler()
+	h.ServeHTTP(recorder, req)
+	if !success {
+		t.Error("Expected POST responder to be executed")
 	}
 }
