@@ -2,12 +2,32 @@
 
 ## Purpose
 
-A quick demonstration of routing requests concurrently to other
-endpoints
+An http.Handler implementation for golang net/http which can override
+specific parts of the URI and relay the response back to the client.
 
-## Concurrency Test
+## Usage
 
-There's a small test where you can test the concurrency of the script.
-Take care to not execute it with the main.proxyRequest() intact.
-Commenting out lines 25-35 will save google and reddit from a deluge of
-requests.
+```
+import (
+  "github.com/placer14/proxy_handler"
+  "net/url"
+)
+
+p := proxy_handler.New()
+uriMask := url.URL{
+  Host: "google.com",
+}
+p.HandleEndpoint("/foo", &uriMask) 
+http.ListenAndServe(":80", p)
+```
+
+`func (h *ProxyHandler) HandleEndpoint(regexp string, uriMask *url.URL)`
+
+Accepts a `regexp` string which is compiled and compared against
+incoming http.Requests. If regexp matches with the Request.RequestURI
+then the `uriMask` values for Host is overwritten on the Request and
+then handled normally returning the response to the client.
+
+If a Request does not match any `regexp` provided, the request is
+processed normally without modification.
+

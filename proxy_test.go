@@ -21,7 +21,7 @@ func TestBodyTransfer(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	recorder := httptest.NewRecorder()
 
-	h := handler.NewProxyHandler()
+	h := handler.New()
 	h.ServeHTTP(recorder, req)
 	actualBody, err := ioutil.ReadAll(recorder.Body)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestHeaderTransfer(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
 
-	h := handler.NewProxyHandler()
+	h := handler.New()
 	h.ServeHTTP(recorder, req)
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
@@ -85,7 +85,7 @@ func TestPostMethod(t *testing.T) {
 	req := httptest.NewRequest("POST", "/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
-	h := handler.NewProxyHandler()
+	h := handler.New()
 	h.ServeHTTP(recorder, req)
 	if !success {
 		t.Error("Expected POST responder to be executed")
@@ -104,7 +104,7 @@ func TestRedirectHost(t *testing.T) {
 	req := httptest.NewRequest("GET", "/foo", nil)
 	recorder := httptest.NewRecorder()
 
-	h := handler.NewProxyHandler()
+	h := handler.New()
 	overrideMask, _ := url.Parse("//google.com/")
 	h.HandleEndpoint("/foo", overrideMask)
 	h.ServeHTTP(recorder, req)

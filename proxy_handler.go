@@ -18,7 +18,7 @@ type ProxyHandler struct {
 	routes map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
 }
 
-func NewProxyHandler() *ProxyHandler {
+func New() *ProxyHandler {
 	p := &ProxyHandler{}
 	(*p).routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
 	return p

@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	p := proxy_handler.NewProxyHandler()
+	p := proxy_handler.New()
 	proxyEndpoints := map[string]string{
 		"/":    "http://reddit.com",
 		"/foo": "http://cnn.com",
