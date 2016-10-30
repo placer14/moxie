@@ -28,6 +28,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for regexp, h := range h.routes {
 		if regexp.Match(([]byte)(r.URL.Host + r.URL.Path)) {
 			h(w, r)
+			return
 		}
 	}
 	prepareHandler(&url.URL{})(w, r)
@@ -62,7 +63,7 @@ func copyHeaders(dst, src http.Header) {
 }
 
 func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
-	proxyRequestUrl := r.URL
+	proxyRequestUrl := *(r.URL)
 	if proxyOverride.Host != "" {
 		proxyRequestUrl.Host = proxyOverride.Host
 	}

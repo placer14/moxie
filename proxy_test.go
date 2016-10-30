@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -88,5 +89,27 @@ func TestPostMethod(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 	if !success {
 		t.Error("Expected POST responder to be executed")
+	}
+}
+
+func TestRedirectHost(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	success := false
+	httpmock.RegisterResponder("GET", "//google.com/foo", func(r *http.Request) (*http.Response, error) {
+		success = true
+		return httpmock.NewStringResponse(200, ""), nil
+	})
+	req := httptest.NewRequest("GET", "/foo", nil)
+	recorder := httptest.NewRecorder()
+
+	h := handler.NewProxyHandler()
+	overrideMask, _ := url.Parse("//google.com/")
+	h.HandleEndpoint("/foo", overrideMask)
+	h.ServeHTTP(recorder, req)
+
+	if !success {
+		t.Error("Expected handler to direct request to google.com host")
 	}
 }
