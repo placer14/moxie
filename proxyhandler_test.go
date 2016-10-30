@@ -1,8 +1,8 @@
-package proxy_handler_test
+package proxyhandler_test
 
 import (
 	"github.com/jarcoal/httpmock"
-	handler "github.com/placer14/proxy_handler"
+	handler "github.com/placer14/proxyhandler"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

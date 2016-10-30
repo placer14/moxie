@@ -1,4 +1,4 @@
-# proxy_handler
+# proxyhandler
 
 ## Purpose
 
@@ -9,11 +9,11 @@ specific parts of the URI and relay the response back to the client.
 
 ```
 import (
-  "github.com/placer14/proxy_handler"
+  "github.com/placer14/proxyhandler"
   "net/url"
 )
 
-p := proxy_handler.New()
+p := proxyhandler.New()
 uriMask := url.URL{
   Host: "google.com",
 }

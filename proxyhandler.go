@@ -1,4 +1,4 @@
-package proxy_handler
+package proxyhandler
 
 import (
 	"io"

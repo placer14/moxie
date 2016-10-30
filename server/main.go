@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/placer14/proxy_handler"
+	"github.com/placer14/proxyhandler"
 	"log"
 	"net/http"
 	"net/url"
 )
 
 func main() {
-	p := proxy_handler.New()
+	p := proxyhandler.New()
 	proxyEndpoints := map[string]string{
 		"^/$":  "http://reddit.com",
 		"/foo": "http://cnn.com",
