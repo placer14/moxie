@@ -13,11 +13,14 @@ import (
 var numberOfProxyWorkers = 5
 var workPool = make(chan bool, numberOfProxyWorkers)
 
+// ProxyHandler implements http.Handler and will override portions of the request URI
+// prior to completing the request.
 type ProxyHandler struct {
 	http.Handler
 	routes map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
 }
 
+// New creates allocates a zero-value ProxyHandler and returns its pointer
 func New() *ProxyHandler {
 	p := &ProxyHandler{}
 	(*p).routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
@@ -43,12 +46,16 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 	}
 }
 
-func (p *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
+// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
+// compared against incoming Requests. If the Regexp matches the incoming
+// Request.RequestURI, the Host value from proxyOverride is used in the resulting
+// HTTP request instead.
+func (h *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
 	r, err := regexp.Compile(endpoint)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	p.routes[r] = prepareHandler(proxyOverride)
+	h.routes[r] = prepareHandler(proxyOverride)
 }
 
 func copyHeaders(dst, src http.Header) {
@@ -63,15 +70,15 @@ func copyHeaders(dst, src http.Header) {
 }
 
 func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
-	proxyRequestUrl := *(r.URL)
+	proxyRequestURL := *(r.URL)
 	if proxyOverride.Host != "" {
-		proxyRequestUrl.Host = proxyOverride.Host
+		proxyRequestURL.Host = proxyOverride.Host
 	}
-	if proxyRequestUrl.Scheme == "" && r.URL.IsAbs() {
-		proxyRequestUrl.Scheme = "http"
+	if proxyRequestURL.Scheme == "" && r.URL.IsAbs() {
+		proxyRequestURL.Scheme = "http"
 	}
 	proxyBody, err := ioutil.ReadAll(r.Body)
-	req, err := http.NewRequest(r.Method, proxyRequestUrl.String(), strings.NewReader(string(proxyBody)))
+	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), strings.NewReader(string(proxyBody)))
 	if err != nil {
 		log.Println("Proxy error", err.Error())
 	}
