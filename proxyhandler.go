@@ -1,3 +1,5 @@
+// Package proxyhandler is an http.Handler which allows the RequestURI to be
+// rewritten per request received.
 package proxyhandler
 
 import (

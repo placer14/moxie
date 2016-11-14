@@ -18,16 +18,17 @@ uriMask := url.URL{
   Host: "google.com",
 }
 p.HandleEndpoint("/foo", &uriMask) 
+
+if parsedUrl, err := url.Parse("http://wikipedia.org"); err != nil {
+  p.HandleEndpoint("/", parsedUrl)
+}
 http.ListenAndServe(":80", p)
 ```
 
-`func (h *ProxyHandler) HandleEndpoint(regexp string, uriMask *url.URL)`
+## Documentation
 
-Accepts a `regexp` string which is compiled and compared against
-incoming http.Requests. If regexp matches with the Request.RequestURI
-then the `uriMask` values for Host is overwritten on the Request and
-then handled normally returning the response to the client.
+Visit https://godoc.org/github.com/placer14/proxyhandler or run
 
-If a Request does not match any `regexp` provided, the request is
-processed normally without modification.
+`godoc github.com/placer14/proxyhandler`
+
 
