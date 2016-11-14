@@ -3,6 +3,7 @@
 package proxyhandler
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,14 +20,21 @@ var workPool = make(chan bool, numberOfProxyWorkers)
 // prior to completing the request.
 type ProxyHandler struct {
 	http.Handler
-	routes map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
+	DefaultHost *url.URL
+	routes      map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
 }
 
-// New creates allocates a zero-value ProxyHandler and returns its pointer
-func New() *ProxyHandler {
-	p := &ProxyHandler{}
-	(*p).routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
-	return p
+// New creates allocates a zero-value ProxyHandler and returns its pointer. defaultProxiedServer
+// will provide the default host for handling routes which are not defined in the proxy
+func New(defaultProxiedServer string) (*ProxyHandler, error) {
+	p := ProxyHandler{}
+	if u, err := url.Parse(defaultProxiedServer); err != nil {
+		return nil, errors.New("Invalid default proxy host:" + err.Error())
+	} else {
+		p.DefaultHost = u
+	}
+	p.routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
+	return &p, nil
 }
 
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +44,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	prepareHandler(&url.URL{})(w, r)
+	prepareHandler(h.DefaultHost)(w, r)
 }
 
 func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {

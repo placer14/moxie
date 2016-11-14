@@ -8,7 +8,10 @@ import (
 )
 
 func main() {
-	p := proxyhandler.New()
+	p, err := proxyhandler.New("http://msn.com")
+	if err != nil {
+		log.Fatal("Invalid proxied server URI")
+	}
 	proxyEndpoints := map[string]string{
 		"^/$":  "http://reddit.com",
 		"/foo": "http://cnn.com",

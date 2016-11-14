@@ -21,7 +21,7 @@ func TestBodyTransfer(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://hostname/", nil)
 	recorder := httptest.NewRecorder()
 
-	h := handler.New()
+	h, _ := handler.New("")
 	h.ServeHTTP(recorder, req)
 	actualBody, err := ioutil.ReadAll(recorder.Body)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestRequestHeaderTransfer(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://hostname/", nil)
 	req.Header = expectedHeader
 
-	h := handler.New()
+	h, _ := handler.New("")
 	h.ServeHTTP(httptest.NewRecorder(), req)
 }
 
@@ -76,7 +76,7 @@ func TestResponseHeaderTransfer(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://hostname/", nil)
 
-	h := handler.New()
+	h, _ := handler.New("")
 	h.ServeHTTP(recorder, req)
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
@@ -108,14 +108,14 @@ func TestPostMethod(t *testing.T) {
 	req := httptest.NewRequest("POST", "http://hostname/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
-	h := handler.New()
+	h, _ := handler.New("")
 	h.ServeHTTP(recorder, req)
 	if !success {
 		t.Error("Expected POST responder to be executed")
 	}
 }
 
-func TestRedirectHost(t *testing.T) {
+func TestProxiedRequest(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -127,12 +127,44 @@ func TestRedirectHost(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://hostname/foo", nil)
 	recorder := httptest.NewRecorder()
 
-	h := handler.New()
+	h, _ := handler.New("")
 	overrideMask, _ := url.Parse("//google.com/")
 	h.HandleEndpoint("/foo", overrideMask)
 	h.ServeHTTP(recorder, req)
 
 	if !success {
 		t.Error("Expected handler to direct request to google.com host")
+	}
+}
+
+func TestDefaultHostParsingFailure(t *testing.T) {
+	_, err := handler.New("http://192.168%31/") // invalid URL
+	if err == nil {
+		t.Fatal("Expected handler to return an error when defaultProxiedServer cannot be parsed")
+	}
+}
+
+func TestDefaultHostIsSet(t *testing.T) {
+	defaultHost := "http://192.168.1.1"
+	h, _ := handler.New(defaultHost) // invalid URL
+	if h.DefaultHost.String() != defaultHost {
+		t.Fatal("Expected handler's DefaultHost to match argument")
+	}
+}
+
+func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	success := false
+
+	httpmock.RegisterResponder("GET", "//hostname/", func(r *http.Request) (*http.Response, error) {
+		success = true
+		return httpmock.NewStringResponse(200, ""), nil
+	})
+
+	h, _ := handler.New("//hostname")
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	if !success {
+		t.Error("Expected default host to be requested")
 	}
 }
