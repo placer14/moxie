@@ -168,3 +168,27 @@ func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
 		t.Error("Expected default host to be requested")
 	}
 }
+
+func BenchmarkRouteHandling(b *testing.B) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	h, _ := handler.New("//defaultRoute/")
+	proxyEndpoints := map[string]string{
+		"/":       "//reddit.com/",
+		"/foo":    "//cnn.com",
+		"/bazqux": "//elsewhere.com",
+	}
+
+	for endpoint, override := range proxyEndpoints {
+		u, _ := url.Parse(override)
+		h.HandleEndpoint(endpoint, u)
+
+		httpmock.RegisterResponder("GET", override, func(r *http.Request) (*http.Response, error) {
+			return httpmock.NewStringResponse(200, ""), nil
+		})
+	}
+
+	for i := 0; i < b.N; i++ {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+	}
+}
