@@ -4,17 +4,30 @@ import (
 	"github.com/jarcoal/httpmock"
 	handler "github.com/placer14/proxyhandler"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestBodyTransfer(t *testing.T) {
+func beforeTest() {
 	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	log.SetOutput(ioutil.Discard)
+}
+
+func afterTest() {
+	log.SetOutput(os.Stderr)
+	httpmock.DeactivateAndReset()
+
+}
+
+func TestBodyTransfer(t *testing.T) {
+	beforeTest()
+	defer afterTest()
 
 	expectedBody := "This is the expected body"
 	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewStringResponder(200, expectedBody))
@@ -25,19 +38,17 @@ func TestBodyTransfer(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 	actualBody, err := ioutil.ReadAll(recorder.Body)
 	if err != nil {
-		t.Fatal("Response body unreadable:", err.Error())
+		t.Fatalf("Response body unreadable: %v", err.Error())
 	}
 
-	if expectedBody != string(actualBody) {
-		t.Error("Expected body not found")
-		t.Log("Expected:", expectedBody)
-		t.Log("Actual:", string(actualBody))
+	if string(expectedBody) != string(actualBody) {
+		t.Fatalf("Expected body not found\n\tExpected: %v\n\tActual: %v", expectedBody, actualBody)
 	}
 }
 
 func TestRequestHeaderTransfer(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
 
 	expectedHeader := http.Header{
 		"X-Foo": []string{"IMPORTANT"},
@@ -45,9 +56,7 @@ func TestRequestHeaderTransfer(t *testing.T) {
 	}
 	httpmock.RegisterResponder("GET", "http://hostname/", func(r *http.Request) (*http.Response, error) {
 		if !reflect.DeepEqual(r.Header, expectedHeader) {
-			t.Error("Unexpected headers")
-			t.Log("Expected:", expectedHeader)
-			t.Log("Actual:", r.Header)
+			t.Fatalf("Unexpected headers\n\tExpected: %v\n\tActual: %v", expectedHeader, r.Header)
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
@@ -59,8 +68,8 @@ func TestRequestHeaderTransfer(t *testing.T) {
 }
 
 func TestResponseHeaderTransfer(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
 
 	expectedHeader := http.Header{
 		"Accept-Ranges":  []string{"bytes"},
@@ -80,15 +89,13 @@ func TestResponseHeaderTransfer(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
-		t.Error("Unexpected headers")
-		t.Log("Expected:", expectedHeader)
-		t.Log("Actual:", recorder.Header())
+		t.Fatalf("Unexpected headers\n\tExpected: %v\n\tActual: %v", expectedHeader, recorder.Header)
 	}
 }
 
 func TestPostMethod(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
 
 	expectedPostBody := `{"some":"json"}`
 	success := false
@@ -96,12 +103,10 @@ func TestPostMethod(t *testing.T) {
 		success = true
 		actualBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			t.Fatal("Response body unreadable:", err.Error())
+			t.Fatalf("Response body unreadable: %v", err.Error())
 		}
 		if expectedPostBody != string(actualBody) {
-			t.Error("Body did not match")
-			t.Log("Expected:", expectedPostBody)
-			t.Log("Actual:", string(actualBody))
+			t.Fatalf("Body did not match\n\tExpected: %v\n\tActual: %v", expectedPostBody, string(actualBody))
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
@@ -116,8 +121,8 @@ func TestPostMethod(t *testing.T) {
 }
 
 func TestProxiedRequest(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
 
 	success := false
 	httpmock.RegisterResponder("GET", "http://google.com/foo", func(r *http.Request) (*http.Response, error) {
@@ -153,8 +158,8 @@ func TestDefaultHostIsSet(t *testing.T) {
 }
 
 func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
 	success := false
 
 	httpmock.RegisterResponder("GET", "//hostname/", func(r *http.Request) (*http.Response, error) {
@@ -170,8 +175,9 @@ func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
 }
 
 func BenchmarkRouteHandling(b *testing.B) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
+	beforeTest()
+	defer afterTest()
+
 	h, _ := handler.New("//defaultRoute/")
 	proxyEndpoints := map[string]string{
 		"/":       "//reddit.com/",

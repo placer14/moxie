@@ -28,11 +28,11 @@ type ProxyHandler struct {
 // will provide the default host for handling routes which are not defined in the proxy
 func New(defaultProxiedServer string) (*ProxyHandler, error) {
 	p := ProxyHandler{}
-	if u, err := url.Parse(defaultProxiedServer); err != nil {
+	u, err := url.Parse(defaultProxiedServer)
+	if err != nil {
 		return nil, errors.New("Invalid default proxy host:" + err.Error())
-	} else {
-		p.DefaultHost = u
 	}
+	p.DefaultHost = u
 	p.routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
 	return &p, nil
 }
@@ -68,13 +68,13 @@ func (h *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
 	h.routes[r] = prepareHandler(proxyOverride)
 }
 
-func copyHeaders(dst, src http.Header) {
-	for k := range src {
-		dst.Del(k)
+func copyHeaders(destination, source http.Header) {
+	for k := range source {
+		destination.Del(k)
 	}
-	for k, vs := range src {
+	for k, vs := range source {
 		for _, v := range vs {
-			dst.Add(k, v)
+			destination.Add(k, v)
 		}
 	}
 }
@@ -90,7 +90,7 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	proxyBody, err := ioutil.ReadAll(r.Body)
 	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), strings.NewReader(string(proxyBody)))
 	if err != nil {
-		log.Println("Proxy error", err.Error())
+		log.Printf("request: %v", err.Error())
 	}
 	copyHeaders(req.Header, r.Header)
 	return req
@@ -104,14 +104,14 @@ func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.UR
 	log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
 	c := &http.Client{}
 	resp, err = c.Do(proxiedRequest)
-	if err != nil {
-		log.Println("Proxy error", err.Error())
-	}
 	defer resp.Body.Close()
+	if err != nil {
+		log.Printf("http request:", err.Error())
+	}
 	copyHeaders(w.Header(), resp.Header)
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
-		log.Fatalln("Proxy error", err.Error())
+		log.Printf("transfer body:", err.Error())
 	}
 
 	<-workPool
