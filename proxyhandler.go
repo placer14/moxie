@@ -36,37 +36,6 @@ func New(defaultProxiedServer string) (*ProxyHandler, error) {
 	return &p, nil
 }
 
-func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for regexp, h := range h.routes {
-		if regexp.Match(([]byte)(r.URL.Host + r.URL.Path)) {
-			h(w, r)
-			return
-		}
-	}
-	prepareHandler(h.DefaultHost)(w, r)
-}
-
-func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		complete := make(chan bool)
-		workPool <- true
-		go handleRequest(w, r, proxyOverride, complete)
-		<-complete
-	}
-}
-
-// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
-// compared against incoming Requests. If the Regexp matches the incoming
-// Request.RequestURI, the Host value from proxyOverride is used in the resulting
-// HTTP request instead.
-func (h *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
-	r, err := regexp.Compile(endpoint)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	h.routes[r] = prepareHandler(proxyOverride)
-}
-
 func copyHeaders(destination, source http.Header) {
 	for k := range source {
 		destination.Del(k)
@@ -126,4 +95,35 @@ func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.UR
 
 	<-workPool
 	complete <- true
+}
+
+func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for regexp, h := range h.routes {
+		if regexp.Match(([]byte)(r.URL.Host + r.URL.Path)) {
+			h(w, r)
+			return
+		}
+	}
+	prepareHandler(h.DefaultHost)(w, r)
+}
+
+func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		complete := make(chan bool)
+		workPool <- true
+		go handleRequest(w, r, proxyOverride, complete)
+		<-complete
+	}
+}
+
+// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
+// compared against incoming Requests. If the Regexp matches the incoming
+// Request.RequestURI, the Host value from proxyOverride is used in the resulting
+// HTTP request instead.
+func (h *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
+	r, err := regexp.Compile(endpoint)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	h.routes[r] = prepareHandler(proxyOverride)
 }
