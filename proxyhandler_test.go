@@ -26,6 +26,22 @@ func afterTest() {
 
 }
 
+func TestResponseStatus(t *testing.T) {
+	beforeTest()
+	defer afterTest()
+
+	expectedStatus := 500
+	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewBytesResponder(expectedStatus, nil))
+	r := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://hostname/", nil)
+	h, _ := handler.New("")
+	h.ServeHTTP(r, req)
+
+	if r.Code != expectedStatus {
+		t.Fatalf("Expected status code not found\n\tExpected: %v\n\tActual: %v", expectedStatus, r.Code)
+	}
+}
+
 func TestRequestBodyTransfer(t *testing.T) {
 	beforeTest()
 	defer afterTest()

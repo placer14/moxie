@@ -90,6 +90,8 @@ func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.UR
 	if err != nil {
 		log.Printf("http request:", err.Error())
 	}
+
+	w.WriteHeader(resp.StatusCode)
 	copyHeaders(w.Header(), resp.Header)
 	copyBody(w, resp.Body)
 
