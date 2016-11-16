@@ -5,12 +5,10 @@ package proxyhandler
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 )
 
 const WorkerCapacity = 5
@@ -80,6 +78,17 @@ func copyHeaders(destination, source http.Header) {
 	}
 }
 
+func copyBody(dest io.Writer, source io.ReadCloser) {
+	defer source.Close()
+	if closer, ok := dest.(io.Closer); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(dest, source)
+	if err != nil {
+		log.Printf("transfer body: %v", err.Error())
+	}
+}
+
 func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	proxyRequestURL := *(r.URL)
 	if proxyOverride.Host != "" {
@@ -88,8 +97,11 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	if proxyRequestURL.Scheme == "" && r.URL.IsAbs() {
 		proxyRequestURL.Scheme = "http"
 	}
-	proxyBody, err := ioutil.ReadAll(r.Body)
-	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), strings.NewReader(string(proxyBody)))
+
+	pipeReader, pipeWriter := io.Pipe()
+	go copyBody(pipeWriter, r.Body)
+
+	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), pipeReader)
 	if err != nil {
 		log.Printf("request: %v", err.Error())
 	}
@@ -110,10 +122,7 @@ func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.UR
 		log.Printf("http request:", err.Error())
 	}
 	copyHeaders(w.Header(), resp.Header)
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		log.Printf("transfer body:", err.Error())
-	}
+	copyBody(w, resp.Body)
 
 	<-workPool
 	complete <- true

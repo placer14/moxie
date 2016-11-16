@@ -1,6 +1,7 @@
 package proxyhandler_test
 
 import (
+	"bytes"
 	"github.com/jarcoal/httpmock"
 	handler "github.com/placer14/proxyhandler"
 	"io/ioutil"
@@ -25,12 +26,35 @@ func afterTest() {
 
 }
 
-func TestBodyTransfer(t *testing.T) {
+func TestRequestBodyTransfer(t *testing.T) {
 	beforeTest()
 	defer afterTest()
 
-	expectedBody := "This is the expected body"
-	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewStringResponder(200, expectedBody))
+	expectedBody := []byte("This is the expected body")
+	httpmock.RegisterResponder("POST", "http://hostname/", func(r *http.Request) (*http.Response, error) {
+		actualBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("Request body unreadable: %v", err.Error())
+		}
+
+		if string(expectedBody) != string(actualBody) {
+			t.Fatalf("Expected body not found\n\tExpected: %v\n\tActual: %v", expectedBody, actualBody)
+		}
+		return httpmock.NewStringResponse(200, ""), nil
+	})
+
+	req := httptest.NewRequest("POST", "http://hostname/", bytes.NewBuffer(expectedBody))
+
+	h, _ := handler.New("")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestResponseBodyTransfer(t *testing.T) {
+	beforeTest()
+	defer afterTest()
+
+	expectedBody := []byte("This is the expected body")
+	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewBytesResponder(200, expectedBody))
 	req := httptest.NewRequest("GET", "http://hostname/", nil)
 	recorder := httptest.NewRecorder()
 
