@@ -13,8 +13,9 @@ import (
 	"strings"
 )
 
-var numberOfProxyWorkers = 5
-var workPool = make(chan bool, numberOfProxyWorkers)
+const WorkerCapacity = 5
+
+var workPool = make(chan bool, WorkerCapacity)
 
 // ProxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
