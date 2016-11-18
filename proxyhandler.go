@@ -58,7 +58,7 @@ func copyBody(dest io.Writer, source io.ReadCloser) {
 	}
 }
 
-func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
+func proxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error) {
 	proxyRequestURL := *(r.URL)
 	if proxyOverride.Host != "" {
 		proxyRequestURL.Host = proxyOverride.Host
@@ -70,30 +70,45 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) *http.Request {
 	pipeReader, pipeWriter := io.Pipe()
 	go copyBody(pipeWriter, r.Body)
 
+	// Errors on new Request can only fail on malformed URL and bad Method, both cases are
+	// caught by the server which provided the original request from the client before
+	// it was provided to the handler. The proxyOverride.Host is verified
+	// on load to protect against potential malformed URLs as well. This should never error.
 	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), pipeReader)
 	if err != nil {
-		log.Printf("request: %v", err.Error())
+		return nil, err
 	}
 	copyHeaders(req.Header, r.Header)
-	return req
+	return req, nil
+}
+
+func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
+	// No test coverage here, beware regressions within
+	log.Printf("http request: %v", err.Error())
+	w.WriteHeader(500)
+	w.Header().Set("X-Error", "Unexpected proxied request failure:")
+	w.Header().Add("X-Error", err.Error())
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.URL, complete chan<- bool) {
 	var resp *http.Response
 	var err error
 
-	proxiedRequest := proxyRequest(r, proxyOverride)
+	proxiedRequest, err := proxyRequest(r, proxyOverride)
+	if err != nil {
+		handleUnexpectedHandlingError(err, w)
+	}
 	log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
 	c := &http.Client{}
 	resp, err = c.Do(proxiedRequest)
-	defer resp.Body.Close()
 	if err != nil {
-		log.Printf("http request:", err.Error())
+		handleUnexpectedHandlingError(err, w)
+	} else {
+		defer resp.Body.Close()
+		w.WriteHeader(resp.StatusCode)
+		copyHeaders(w.Header(), resp.Header)
+		copyBody(w, resp.Body)
 	}
-
-	w.WriteHeader(resp.StatusCode)
-	copyHeaders(w.Header(), resp.Header)
-	copyBody(w, resp.Body)
 
 	<-workPool
 	complete <- true
