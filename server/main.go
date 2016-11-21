@@ -13,7 +13,6 @@ func main() {
 		log.Fatal("Invalid proxied server URI")
 	}
 	proxyEndpoints := map[string]string{
-		"^/$":  "http://reddit.com",
 		"/foo": "http://cnn.com",
 	}
 	for endpoint, override := range proxyEndpoints {

@@ -18,21 +18,29 @@ type proxyHandler struct {
 	routeMap    map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
 }
 
-// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
-// will provide the default host for handling routes which are not defined in the proxy
-func New(defaultProxiedServer string) (*proxyHandler, error) {
-	handler := proxyHandler{}
-	u, err := url.Parse(defaultProxiedServer)
+func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
+	u, err := url.Parse(subject)
 	if err != nil {
-		return nil, errors.New("proxy: invalid default host: " + err.Error())
+		return errors.New("proxy: invalid default host: " + err.Error())
 	}
 	if u.Scheme == "" {
 		u.Scheme = "http"
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, errors.New("proxy: invalid default host scheme")
+		return errors.New("proxy: invalid default host scheme")
 	}
 	handler.DefaultHost = u
+	return nil
+}
+
+// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
+// will provide the default host for handling routes which are not defined in the proxy
+func New(defaultProxiedHost string) (*proxyHandler, error) {
+	handler := proxyHandler{}
+	err := handler.setDefaultProxyHost(defaultProxiedHost)
+	if err != nil {
+		return nil, err
+	}
 	handler.routeMap = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
 	return &handler, nil
 }
@@ -64,7 +72,7 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error
 	if proxyOverride.Host != "" {
 		proxyRequestURL.Host = proxyOverride.Host
 	}
-	if proxyRequestURL.Scheme == "" && r.URL.IsAbs() {
+	if proxyRequestURL.Scheme == "" {
 		proxyRequestURL.Scheme = "http"
 	}
 

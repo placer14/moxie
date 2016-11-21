@@ -220,12 +220,12 @@ func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
 	defer afterTest()
 	success := false
 
-	httpmock.RegisterResponder("GET", "//hostname/", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("GET", "http://notgoogle/", func(r *http.Request) (*http.Response, error) {
 		success = true
 		return httpmock.NewStringResponse(200, ""), nil
 	})
 
-	h, _ := New("//hostname")
+	h, _ := New("http://notgoogle")
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
 	if !success {
 		t.Error("Expected default host to be requested")
