@@ -11,29 +11,30 @@ import (
 	"regexp"
 )
 
-const WorkerCapacity = 5
-
-var workPool = make(chan bool, WorkerCapacity)
-
-// ProxyHandler implements http.Handler and will override portions of the request URI
+// proxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
-type ProxyHandler struct {
-	http.Handler
+type proxyHandler struct {
 	DefaultHost *url.URL
-	routes      map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
+	routeMap    map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
 }
 
-// New creates allocates a zero-value ProxyHandler and returns its pointer. defaultProxiedServer
+// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
 // will provide the default host for handling routes which are not defined in the proxy
-func New(defaultProxiedServer string) (*ProxyHandler, error) {
-	p := ProxyHandler{}
+func New(defaultProxiedServer string) (*proxyHandler, error) {
+	handler := proxyHandler{}
 	u, err := url.Parse(defaultProxiedServer)
 	if err != nil {
-		return nil, errors.New("Invalid default proxy host:" + err.Error())
+		return nil, errors.New("proxy: invalid default host: " + err.Error())
 	}
-	p.DefaultHost = u
-	p.routes = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
-	return &p, nil
+	if u.Scheme == "" {
+		u.Scheme = "http"
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, errors.New("proxy: invalid default host scheme")
+	}
+	handler.DefaultHost = u
+	handler.routeMap = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
+	return &handler, nil
 }
 
 func copyHeaders(destination, source http.Header) {
@@ -67,19 +68,16 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error
 		proxyRequestURL.Scheme = "http"
 	}
 
-	pipeReader, pipeWriter := io.Pipe()
-	go copyBody(pipeWriter, r.Body)
-
 	// Errors on new Request can only fail on malformed URL and bad Method, both cases are
 	// caught by the server which provided the original request from the client before
 	// it was provided to the handler. The proxyOverride.Host is verified
 	// on load to protect against potential malformed URLs as well. This should never error.
-	req, err := http.NewRequest(r.Method, proxyRequestURL.String(), pipeReader)
+	proxiedRequest, err := http.NewRequest(r.Method, proxyRequestURL.String(), r.Body)
 	if err != nil {
 		return nil, err
 	}
-	copyHeaders(req.Header, r.Header)
-	return req, nil
+	copyHeaders(proxiedRequest.Header, r.Header)
+	return proxiedRequest, nil
 }
 
 func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
@@ -90,46 +88,36 @@ func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
 	w.Header().Add("X-Error", err.Error())
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request, proxyOverride *url.URL, complete chan<- bool) {
-	var resp *http.Response
-	var err error
-
-	proxiedRequest, err := proxyRequest(r, proxyOverride)
-	if err != nil {
-		handleUnexpectedHandlingError(err, w)
-	}
-	log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
-	c := &http.Client{}
-	resp, err = c.Do(proxiedRequest)
-	if err != nil {
-		handleUnexpectedHandlingError(err, w)
-	} else {
-		defer resp.Body.Close()
-		w.WriteHeader(resp.StatusCode)
-		copyHeaders(w.Header(), resp.Header)
-		copyBody(w, resp.Body)
-	}
-
-	<-workPool
-	complete <- true
-}
-
-func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for regexp, h := range h.routes {
+func (handler *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for regexp, proxiedRequestHandler := range handler.routeMap {
 		if regexp.Match(([]byte)(r.URL.Host + r.URL.Path)) {
-			h(w, r)
+			proxiedRequestHandler(w, r)
 			return
 		}
 	}
-	prepareHandler(h.DefaultHost)(w, r)
+	prepareHandler(handler.DefaultHost)(w, r)
 }
 
 func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		complete := make(chan bool)
-		workPool <- true
-		go handleRequest(w, r, proxyOverride, complete)
-		<-complete
+		var resp *http.Response
+		var err error
+
+		proxiedRequest, err := proxyRequest(r, proxyOverride)
+		if err != nil {
+			handleUnexpectedHandlingError(err, w)
+		}
+		log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
+		c := &http.Client{}
+		resp, err = c.Do(proxiedRequest)
+		if err != nil {
+			handleUnexpectedHandlingError(err, w)
+		} else {
+			defer resp.Body.Close()
+			w.WriteHeader(resp.StatusCode)
+			copyHeaders(w.Header(), resp.Header)
+			copyBody(w, resp.Body)
+		}
 	}
 }
 
@@ -137,10 +125,10 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 // compared against incoming Requests. If the Regexp matches the incoming
 // Request.RequestURI, the Host value from proxyOverride is used in the resulting
 // HTTP request instead.
-func (h *ProxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
+func (handler *proxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
 	r, err := regexp.Compile(endpoint)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	h.routes[r] = prepareHandler(proxyOverride)
+	handler.routeMap[r] = prepareHandler(proxyOverride)
 }
