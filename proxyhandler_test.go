@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -176,8 +175,7 @@ func TestProxyHandlesSpecificEndpoint(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
 	h, _ := New("")
-	overrideMask, _ := url.Parse("//google.com/")
-	h.HandleEndpoint("/foo", overrideMask)
+	h.HandleEndpoint("/foo", "//google.com/")
 	h.ServeHTTP(recorder, req)
 
 	if !success {
@@ -238,8 +236,7 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 
 	var actualError error
 	h, _ := New("hostname")
-	u, _ := url.Parse("http://anotherhostname")
-	actualError = h.HandleEndpoint("", u)
+	actualError = h.HandleEndpoint("", "http://anotherhostname")
 	if actualError == nil {
 		t.Fatal("expected empty endpoint to return error")
 	}
@@ -247,6 +244,13 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 		t.Error("expected error to be empty route endpoint message")
 	}
 
+	actualError = h.HandleEndpoint("/foobar", "http://invalid.%2312.hostname")
+	if actualError == nil {
+		t.Fatal("expected invalid override hostname to return error")
+	}
+	if !strings.HasPrefix(actualError.Error(), "proxy: invalid override url") {
+		t.Error("expected error to be invalid override url message")
+	}
 }
 
 func BenchmarkRouteHandling(b *testing.B) {
@@ -261,9 +265,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 	}
 
 	for endpoint, override := range proxyEndpoints {
-		u, _ := url.Parse(override)
-		h.HandleEndpoint(endpoint, u)
-
+		h.HandleEndpoint(endpoint, override)
 		httpmock.RegisterResponder("GET", override, func(r *http.Request) (*http.Response, error) {
 			return httpmock.NewStringResponse(200, ""), nil
 		})

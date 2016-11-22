@@ -115,7 +115,7 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 		if err != nil {
 			handleUnexpectedHandlingError(err, w)
 		}
-		log.Printf("Got request %s\nAsking for %s", r.URL.String(), proxiedRequest.URL.String())
+		log.Printf("Got request %s\n\tAsking for %s", r.URL.String(), proxiedRequest.URL.String())
 		c := &http.Client{}
 		resp, err = c.Do(proxiedRequest)
 		if err != nil {
@@ -133,10 +133,14 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 // compared against incoming Requests. If the Regexp matches the incoming
 // Request.RequestURI, the Host value from proxyOverride is used in the resulting
 // HTTP request instead.
-func (handler *proxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) error {
+func (handler *proxyHandler) HandleEndpoint(endpoint, proxyOverride string) error {
 	if len(endpoint) == 0 {
 		return errors.New("proxy: empty route endpoint")
 	}
-	handler.routeMap[endpoint] = prepareHandler(proxyOverride)
+	overrideUrl, err := url.Parse(proxyOverride)
+	if err != nil {
+		return errors.New("proxy: invalid override url: " + err.Error())
+	}
+	handler.routeMap[endpoint] = prepareHandler(overrideUrl)
 	return nil
 }
