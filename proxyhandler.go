@@ -8,14 +8,14 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
+	"strings"
 )
 
 // proxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
 type proxyHandler struct {
 	DefaultHost *url.URL
-	routeMap    map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)
+	routeMap    map[string]func(http.ResponseWriter, *http.Request)
 }
 
 func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
@@ -41,7 +41,7 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler.routeMap = (make(map[*regexp.Regexp]func(http.ResponseWriter, *http.Request)))
+	handler.routeMap = (make(map[string]func(http.ResponseWriter, *http.Request)))
 	return &handler, nil
 }
 
@@ -97,8 +97,8 @@ func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
 }
 
 func (handler *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for regexp, proxiedRequestHandler := range handler.routeMap {
-		if regexp.Match(([]byte)(r.URL.Host + r.URL.Path)) {
+	for endpoint, proxiedRequestHandler := range handler.routeMap {
+		if strings.HasPrefix(r.URL.Path, endpoint) {
 			proxiedRequestHandler(w, r)
 			return
 		}
@@ -115,7 +115,7 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 		if err != nil {
 			handleUnexpectedHandlingError(err, w)
 		}
-		log.Printf("Got request %s\n\tAsking for %s\n", r.URL.String(), proxiedRequest.URL.String())
+		log.Printf("Got request %s\nAsking for %s", r.URL.String(), proxiedRequest.URL.String())
 		c := &http.Client{}
 		resp, err = c.Do(proxiedRequest)
 		if err != nil {
@@ -133,10 +133,10 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 // compared against incoming Requests. If the Regexp matches the incoming
 // Request.RequestURI, the Host value from proxyOverride is used in the resulting
 // HTTP request instead.
-func (handler *proxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) {
-	r, err := regexp.Compile(endpoint)
-	if err != nil {
-		log.Fatalln(err.Error())
+func (handler *proxyHandler) HandleEndpoint(endpoint string, proxyOverride *url.URL) error {
+	if len(endpoint) == 0 {
+		return errors.New("proxy: empty route endpoint")
 	}
-	handler.routeMap[r] = prepareHandler(proxyOverride)
+	handler.routeMap[endpoint] = prepareHandler(proxyOverride)
+	return nil
 }

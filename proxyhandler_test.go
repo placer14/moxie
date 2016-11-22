@@ -232,6 +232,23 @@ func TestDefaultHostIsUsedWhenMatchingRouteMissing(t *testing.T) {
 	}
 }
 
+func TestHandleEndpointReturnsError(t *testing.T) {
+	beforeTest()
+	defer afterTest()
+
+	var actualError error
+	h, _ := New("hostname")
+	u, _ := url.Parse("http://anotherhostname")
+	actualError = h.HandleEndpoint("", u)
+	if actualError == nil {
+		t.Fatal("expected empty endpoint to return error")
+	}
+	if !strings.HasPrefix(actualError.Error(), "proxy: empty route endpoint") {
+		t.Error("expected error to be empty route endpoint message")
+	}
+
+}
+
 func BenchmarkRouteHandling(b *testing.B) {
 	beforeTest()
 	defer afterTest()
