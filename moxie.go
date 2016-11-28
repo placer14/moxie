@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/placer14/proxyhandler"
+	"./proxyhandler"
 	"log"
 	"net/http"
 )
@@ -17,5 +17,6 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
+	log.Println("Starting proxy server on 0.0.0.0:8080...")
 	log.Fatalln(http.ListenAndServe(":8080", p))
 }
