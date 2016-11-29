@@ -19,7 +19,45 @@ type proxyHandler struct {
 	routeMap       map[string]func(http.ResponseWriter, *http.Request)
 }
 
-func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
+// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
+// will provide the default host for handling routes which are not defined in the proxy
+func New(defaultProxiedHost string) (*proxyHandler, error) {
+	handler := proxyHandler{}
+	err := handler.setDefaultProxyHandler(defaultProxiedHost)
+	if err != nil {
+		return nil, err
+	}
+	handler.routeMap = (make(map[string]func(http.ResponseWriter, *http.Request)))
+	return &handler, nil
+}
+
+// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
+// compared against incoming Requests. If the Regexp matches the incoming
+// Request.RequestURI, the Host value from proxyOverride is used in the resulting
+// HTTP request instead.
+func (handler *proxyHandler) HandleEndpoint(endpoint, proxyOverride string) error {
+	if len(endpoint) == 0 {
+		return errors.New("proxy: empty route endpoint")
+	}
+	overrideUrl, err := url.Parse(proxyOverride)
+	if err != nil {
+		return errors.New("proxy: invalid override url: " + err.Error())
+	}
+	handler.routeMap[endpoint] = prepareHandler(overrideUrl)
+	return nil
+}
+
+func (handler *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for endpoint, proxiedRequestHandler := range handler.routeMap {
+		if strings.HasPrefix(r.URL.Path, endpoint) {
+			proxiedRequestHandler(w, r)
+			return
+		}
+	}
+	handler.DefaultHandler(w, r)
+}
+
+func (handler *proxyHandler) setDefaultProxyHandler(subject string) error {
 	u, err := url.Parse(subject)
 	if err != nil {
 		return errors.New("proxy: invalid default host: " + err.Error())
@@ -35,34 +73,26 @@ func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
 	return nil
 }
 
-// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
-// will provide the default host for handling routes which are not defined in the proxy
-func New(defaultProxiedHost string) (*proxyHandler, error) {
-	handler := proxyHandler{}
-	err := handler.setDefaultProxyHost(defaultProxiedHost)
-	if err != nil {
-		return nil, err
-	}
-	handler.routeMap = (make(map[string]func(http.ResponseWriter, *http.Request)))
-	return &handler, nil
-}
+func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var resp *http.Response
+		var err error
 
-func copyHeaders(destination, source http.Header) {
-	for k, vs := range source {
-		for _, v := range vs {
-			destination.Add(k, v)
+		proxiedRequest, err := proxyRequest(r, proxyOverride)
+		if err != nil {
+			handleUnexpectedHandlingError(err, w)
 		}
-	}
-}
-
-func copyBody(dest io.Writer, source io.ReadCloser) {
-	defer source.Close()
-	if closer, ok := dest.(io.Closer); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(dest, source)
-	if err != nil {
-		log.Printf("transfer body: %v", err.Error())
+		log.Printf("Got request %s\n\tAsking for %s", r.URL.String(), proxiedRequest.URL.String())
+		c := &http.Client{}
+		resp, err = c.Do(proxiedRequest)
+		if err != nil {
+			handleUnexpectedHandlingError(err, w)
+		} else {
+			defer resp.Body.Close()
+			w.WriteHeader(resp.StatusCode)
+			copyHeaders(w.Header(), resp.Header)
+			io.Copy(w, resp.Body)
+		}
 	}
 }
 
@@ -95,51 +125,10 @@ func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
 	w.Header().Add("X-Error", err.Error())
 }
 
-func (handler *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for endpoint, proxiedRequestHandler := range handler.routeMap {
-		if strings.HasPrefix(r.URL.Path, endpoint) {
-			proxiedRequestHandler(w, r)
-			return
+func copyHeaders(destination, source http.Header) {
+	for k, vs := range source {
+		for _, v := range vs {
+			destination.Add(k, v)
 		}
 	}
-	handler.DefaultHandler(w, r)
-}
-
-func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var resp *http.Response
-		var err error
-
-		proxiedRequest, err := proxyRequest(r, proxyOverride)
-		if err != nil {
-			handleUnexpectedHandlingError(err, w)
-		}
-		log.Printf("Got request %s\n\tAsking for %s", r.URL.String(), proxiedRequest.URL.String())
-		c := &http.Client{}
-		resp, err = c.Do(proxiedRequest)
-		if err != nil {
-			handleUnexpectedHandlingError(err, w)
-		} else {
-			defer resp.Body.Close()
-			w.WriteHeader(resp.StatusCode)
-			copyHeaders(w.Header(), resp.Header)
-			copyBody(w, resp.Body)
-		}
-	}
-}
-
-// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
-// compared against incoming Requests. If the Regexp matches the incoming
-// Request.RequestURI, the Host value from proxyOverride is used in the resulting
-// HTTP request instead.
-func (handler *proxyHandler) HandleEndpoint(endpoint, proxyOverride string) error {
-	if len(endpoint) == 0 {
-		return errors.New("proxy: empty route endpoint")
-	}
-	overrideUrl, err := url.Parse(proxyOverride)
-	if err != nil {
-		return errors.New("proxy: invalid override url: " + err.Error())
-	}
-	handler.routeMap[endpoint] = prepareHandler(overrideUrl)
-	return nil
 }
