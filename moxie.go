@@ -1,7 +1,7 @@
 package main
 
 import (
-	"./proxyhandler"
+	"github.com/placer14/moxie/proxyhandler"
 	"log"
 	"net/http"
 )

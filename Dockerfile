@@ -1,7 +1,7 @@
 FROM golang:latest
 MAINTAINER Mike Greenberg <mg@nobulb.com>
 
-RUN mkdir -p /go/src/app
-WORKDIR /go/src/app
+RUN mkdir -p /go/src/moxie
+WORKDIR /go/src/moxie
 
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT ["/usr/local/go/bin/go"]
