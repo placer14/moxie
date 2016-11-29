@@ -14,8 +14,9 @@ import (
 // proxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
 type proxyHandler struct {
-	DefaultHost *url.URL
-	routeMap    map[string]func(http.ResponseWriter, *http.Request)
+	DefaultHost    *url.URL
+	DefaultHandler func(http.ResponseWriter, *http.Request)
+	routeMap       map[string]func(http.ResponseWriter, *http.Request)
 }
 
 func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
@@ -30,6 +31,7 @@ func (handler *proxyHandler) setDefaultProxyHost(subject string) error {
 		return errors.New("proxy: invalid default host scheme")
 	}
 	handler.DefaultHost = u
+	handler.DefaultHandler = prepareHandler(handler.DefaultHost)
 	return nil
 }
 
@@ -100,7 +102,7 @@ func (handler *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	prepareHandler(handler.DefaultHost)(w, r)
+	handler.DefaultHandler(w, r)
 }
 
 func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Request) {
