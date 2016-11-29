@@ -1,0 +1,7 @@
+FROM ubuntu:latest
+MAINTAINER Mike Greenberg <mg@nobulb.com>
+
+COPY ./moxie /usr/bin/moxie
+RUN chmod +x /usr/bin/moxie
+
+ENTRYPOINT ["moxie"]
