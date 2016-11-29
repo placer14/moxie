@@ -31,19 +31,19 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	return &handler, nil
 }
 
-// HandleEndpoint accepts a string `endpoint` which is compiled to a Regexp which is
+// HandleEndpoint accepts a string `path` which is compiled to a Regexp which is
 // compared against incoming Requests. If the Regexp matches the incoming
-// Request.RequestURI, the Host value from proxyOverride is used in the resulting
+// Request.RequestURI, the Host value from `endpoint` is used in the resulting
 // HTTP request instead.
-func (handler *proxyHandler) HandleEndpoint(endpoint, proxyOverride string) error {
-	if len(endpoint) == 0 {
-		return errors.New("proxy: empty route endpoint")
+func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
+	if len(path) == 0 {
+		return errors.New("proxy: empty path")
 	}
-	overrideUrl, err := url.Parse(proxyOverride)
+	overrideUrl, err := url.Parse(endpoint)
 	if err != nil {
 		return errors.New("proxy: invalid override url: " + err.Error())
 	}
-	handler.routeMap[endpoint] = prepareHandler(overrideUrl)
+	handler.routeMap[path] = prepareHandler(overrideUrl)
 	return nil
 }
 
@@ -78,15 +78,17 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 		var resp *http.Response
 		var err error
 
-		proxiedRequest, err := proxyRequest(r, proxyOverride)
+		proxyRequest, err := buildProxyRequest(r, proxyOverride)
 		if err != nil {
 			handleUnexpectedHandlingError(err, w)
+			return
 		}
-		log.Printf("Got request %s\n\tAsking for %s", r.URL.String(), proxiedRequest.URL.String())
+		log.Printf("Got request %s\n\tAsking for %s", r.URL.String(), proxyRequest.URL.String())
 		c := &http.Client{}
-		resp, err = c.Do(proxiedRequest)
+		resp, err = c.Do(proxyRequest)
 		if err != nil {
 			handleUnexpectedHandlingError(err, w)
+			return
 		} else {
 			defer resp.Body.Close()
 			w.WriteHeader(resp.StatusCode)
@@ -96,7 +98,7 @@ func prepareHandler(proxyOverride *url.URL) func(http.ResponseWriter, *http.Requ
 	}
 }
 
-func proxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error) {
+func buildProxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error) {
 	proxyRequestURL := *(r.URL)
 	if proxyOverride.Host != "" {
 		proxyRequestURL.Host = proxyOverride.Host
@@ -109,12 +111,12 @@ func proxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error
 	// caught by the server which provided the original request from the client before
 	// it was provided to the handler. The proxyOverride.Host is verified
 	// on load to protect against potential malformed URLs as well. This should never error.
-	proxiedRequest, err := http.NewRequest(r.Method, proxyRequestURL.String(), r.Body)
+	proxyRequest, err := http.NewRequest(r.Method, proxyRequestURL.String(), r.Body)
 	if err != nil {
 		return nil, err
 	}
-	copyHeaders(proxiedRequest.Header, r.Header)
-	return proxiedRequest, nil
+	copyHeaders(proxyRequest.Header, r.Header)
+	return proxyRequest, nil
 }
 
 func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
@@ -123,6 +125,7 @@ func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
 	w.WriteHeader(500)
 	w.Header().Set("X-Error", "Unexpected proxied request failure:")
 	w.Header().Add("X-Error", err.Error())
+	w.Write([]byte("Proxy error: " + err.Error()))
 }
 
 func copyHeaders(destination, source http.Header) {

@@ -240,7 +240,7 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 	if actualError == nil {
 		t.Fatal("expected empty endpoint to return error")
 	}
-	if !strings.HasPrefix(actualError.Error(), "proxy: empty route endpoint") {
+	if !strings.HasPrefix(actualError.Error(), "proxy: empty path") {
 		t.Error("expected error to be empty route endpoint message")
 	}
 
