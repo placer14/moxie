@@ -4,19 +4,17 @@
 
 A proxy server which forks traffic based on the path of the request.
 
-## Building a new production image
+## Building a Dev Environment
 
-Note: Building this assumes you have go locally setup with GOPATH and
-GOBIN configured in your environment.
+`make dev` or more succinctly `make` will create a container inside
+which you have full access to an isolated golang environment.
 
-1. Run `make build`
-2. Docker image `placer14/proxy:latest` will be created and a copy of
-   the binary `proxy` will be located in your local `GOBIN` path.
+When the environment is already present, `make` will start and attach
+you to the existing environment.
 
-## Documentation
+## Destroying a Dev Environment
 
-Visit https://godoc.org/github.com/placer14/proxyhandler or run
-
-`godoc github.com/placer14/proxyhandler`
+`make clean` will destroy the containers and images for the golang
+dev environment.
 
 
