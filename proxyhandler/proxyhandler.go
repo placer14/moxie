@@ -46,9 +46,6 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 }
 
 func copyHeaders(destination, source http.Header) {
-	for k := range source {
-		destination.Del(k)
-	}
 	for k, vs := range source {
 		for _, v := range vs {
 			destination.Add(k, v)
