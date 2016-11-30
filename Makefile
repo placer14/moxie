@@ -22,7 +22,11 @@ dev:
 ifeq ($(shell docker images -q go_dev 2> /dev/null),)
 	@make create_dev
 endif
+ifeq ($(shell docker ps -q --filter="ancestor=go_dev" 2> /dev/null),)
 	docker run --rm -it --volumes-from go_dev_volumes -p 8080:8080/tcp --entrypoint "/bin/bash" go_dev
+else
+	docker exec -it `docker ps --filter="ancestor=go_dev" -q` bash
+endif
 
 create_dev:
 	@echo "\n== Go development image is not present. Creating..."
