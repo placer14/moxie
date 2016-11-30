@@ -31,17 +31,16 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	return &handler, nil
 }
 
-// HandleEndpoint accepts a string `path` which is compiled to a Regexp which is
-// compared against incoming Requests. If the Regexp matches the incoming
-// Request.RequestURI, the Host value from `endpoint` is used in the resulting
-// HTTP request instead.
+// HandleEndpoint accepts a string `path` which is compared against incoming Requests.
+// If the `path` matches the incoming Request.RequestURI, the Host value from `endpoint`
+// is used in the resulting HTTP request instead.
 func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
 	if len(path) == 0 {
 		return errors.New("proxy: empty path")
 	}
 	overrideUrl, err := url.Parse(endpoint)
 	if err != nil {
-		return errors.New("proxy: invalid override url: " + err.Error())
+		return errors.New("proxy: invalid endpoint url: " + err.Error())
 	}
 	handler.routeMap[path] = prepareHandler(overrideUrl)
 	return nil

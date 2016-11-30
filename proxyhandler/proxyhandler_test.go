@@ -241,15 +241,15 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 		t.Fatal("expected empty endpoint to return error")
 	}
 	if !strings.HasPrefix(actualError.Error(), "proxy: empty path") {
-		t.Error("expected error to be empty route endpoint message")
+		t.Error("expected error to be empty path message")
 	}
 
 	actualError = h.HandleEndpoint("/foobar", "http://invalid.%2312.hostname")
 	if actualError == nil {
 		t.Fatal("expected invalid override hostname to return error")
 	}
-	if !strings.HasPrefix(actualError.Error(), "proxy: invalid override url") {
-		t.Error("expected error to be invalid override url message")
+	if !strings.HasPrefix(actualError.Error(), "proxy: invalid endpoint url") {
+		t.Error("expected error to be invalid endpoint url message")
 	}
 }
 

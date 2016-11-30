@@ -12,10 +12,22 @@ test dependencies and execute all the tests from within the environment.
 ## Building Development
 
 `make dev` will create a container inside which you have full access
-to an isolated golang environment.
+to an isolated golang environment called `go_dev`.
 
 When the environment is already present, `make dev` will start and
 attach you to the existing environment.
+
+## Development Cycle
+
+The local repository is mounted to `/go/src/moxie` within the
+development environment provided with standard golang tools. A typical
+development cadence may look like:
+
+1. Make changes to local repository.
+2. `make dev` which creates (if missing) and attaches you to go_dev
+3. `make test` from host or `go test <path>` within go_dev
+4. `go run moxie.go` within go_dev will start moxie for testing
+5. (optionally) `make prod` which tests, creates and runs server binary
 
 ## Building Production
 
