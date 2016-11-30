@@ -1,4 +1,4 @@
-all: test
+all: prod
 
 test:
 ifeq ($(shell docker images -q go_dev 2> /dev/null),)
