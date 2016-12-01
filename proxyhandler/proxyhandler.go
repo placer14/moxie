@@ -15,7 +15,7 @@ import (
 // prior to completing the request.
 type proxyHandler struct {
 	DefaultHost *url.URL
-	endpointMap map[string]*url.URL
+	endpointMaps []*endpointMap
 }
 
 // New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
@@ -26,29 +26,37 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler.endpointMap = make(map[string]*url.URL)
+	handler.endpointMaps = make([]*endpointMap, 0, 0)
 	return &handler, nil
 }
 
 // HandleEndpoint accepts a string `path` which is compared against incoming Requests.
 // If the `path` matches the incoming Request.RequestURI, the Host value from `endpoint`
-// is used in the resulting HTTP request instead.
+// is used in the resulting HTTP request instead. Each endpoint is considered in the
+// same order they are registered to `proxyHandler`.
+//
+// Example:
+//
+// If you were to register two endpoints like so:
+//
+// handler.HandleEndpoint("/", "www.baz.com")
+// handler.HandleEndpoint("/foo", "www.test.com")
+//
+// A request for `/foo` against the server using this handler would have the request
+// proxied to `www.baz.com` instead of `www.test.com` because it was registered first.
 func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
-	if len(path) == 0 {
-		return errors.New("proxy: empty path")
-	}
-	endpointURL, err := url.Parse(endpoint)
+	route, err := newEndpointMap(path, endpoint)
 	if err != nil {
-		return errors.New("proxy: invalid endpoint url: " + err.Error())
+		return errors.New("proxy: error handling endpoint:" + err.Error())
 	}
-	handler.endpointMap[path] = endpointURL
+	handler.endpointMaps = append(handler.endpointMaps, route)
 	return nil
 }
 
 func (handler *proxyHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
-	for path, endpointURL := range handler.endpointMap {
-		if strings.HasPrefix(request.URL.Path, path) {
-			handler.handleProxyRequest(endpointURL, response, request)
+	for _, routeMap := range handler.endpointMaps {
+		if strings.HasPrefix(request.URL.Path, routeMap.path) {
+			handler.handleProxyRequest(routeMap.endpointURL, response, request)
 			return
 		}
 	}

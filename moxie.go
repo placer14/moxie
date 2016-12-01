@@ -7,14 +7,9 @@ import (
 )
 
 func main() {
-	p, err := proxyhandler.New("http://msn.com")
+	p, err := proxyhandler.New("http://0.0.0.0:8000")
 	if err != nil {
 		log.Fatal("Invalid proxied server URI")
-	}
-
-	err = p.HandleEndpoint("/foo", "http://cnn.com")
-	if err != nil {
-		log.Fatalf(err.Error())
 	}
 
 	log.Println("Starting proxy server on 0.0.0.0:8080...")

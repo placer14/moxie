@@ -1,17 +1,19 @@
-package proxyhandler_test
+package proxyhandler
 
 import (
-	. "."
 	"bytes"
 	"github.com/jarcoal/httpmock"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"math/rand"
 )
 
 func beforeTest() {
@@ -240,7 +242,7 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 	if actualError == nil {
 		t.Fatal("expected empty endpoint to return error")
 	}
-	if !strings.HasPrefix(actualError.Error(), "proxy: empty path") {
+	if !strings.Contains(actualError.Error(), "path is empty") {
 		t.Error("expected error to be empty path message")
 	}
 
@@ -248,7 +250,7 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 	if actualError == nil {
 		t.Fatal("expected invalid override hostname to return error")
 	}
-	if !strings.HasPrefix(actualError.Error(), "proxy: invalid endpoint url") {
+	if !strings.Contains(actualError.Error(), "invalid endpoint url") {
 		t.Error("expected error to be invalid endpoint url message")
 	}
 }
@@ -257,21 +259,45 @@ func BenchmarkRouteHandling(b *testing.B) {
 	beforeTest()
 	defer afterTest()
 
-	h, _ := New("//defaultRoute/")
-	proxyEndpoints := map[string]string{
-		"/":       "//reddit.com/",
-		"/foo":    "//cnn.com",
-		"/bazqux": "//elsewhere.com",
+	h, err := New("http://defaulthostname/")
+	if err != nil {
+		b.Fatal("unable to create proxy")
+	}
+	type route struct{path, endpoint string}
+	routes := [3]route{
+		route{"/bazqux", "http://elsewhere.com"},
+		route{"/foo", "http://cnn.com"},
+		route{"/", "http://reddit.com"},
+	}
+	for _, r := range routes {
+		err = h.HandleEndpoint(r.path, r.endpoint)
+		if err != nil {
+			b.Fatalf("unable to handle endpoint: %v -> %v", r.path, r.endpoint)
+		}
 	}
 
-	for endpoint, override := range proxyEndpoints {
-		h.HandleEndpoint(endpoint, override)
-		httpmock.RegisterResponder("GET", override, func(r *http.Request) (*http.Response, error) {
-			return httpmock.NewStringResponse(200, ""), nil
-		})
-	}
+	endpointRequests := make(map[string]int)
+	httpmock.RegisterNoResponder(func(r *http.Request) (*http.Response, error) {
+		endpointRequests[r.URL.Host]++
+		return httpmock.NewStringResponse(200, ""), nil
+	})
 
+  pathRequests := make(map[string]int)
 	for i := 0; i < b.N; i++ {
-		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+		n := rand.Int() % len(routes)
+		pathRequests[routes[n].path]++
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", routes[n].path, nil))
 	}
+
+	var result = []byte("\nPath     Requests     Hostname        Received Delta\n")
+	for _, route := range routes {
+		u, _ := url.Parse(route.endpoint)
+		pathHits := pathRequests[route.path]
+		endpointHits := endpointRequests[u.Host]
+		result = append(result, fmt.Sprintf("% 8s  % 4v  %20s   % 4v    %04v  \n", route.path, pathHits, route.endpoint, endpointHits, pathHits - endpointHits)...)
+		if pathHits != endpointHits {
+			b.Errorf("Requests made to %s do not match requests received by %s\nExpected: %d\nActual %d\n", route.path, route.endpoint, pathHits, endpointHits)
+		}
+	}
+	fmt.Println(string(result))
 }
