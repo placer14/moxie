@@ -14,7 +14,7 @@ import (
 // proxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
 type proxyHandler struct {
-	DefaultHost *url.URL
+	DefaultHost  *url.URL
 	endpointMaps []*endpointMap
 }
 

@@ -2,10 +2,11 @@ package proxyhandler
 
 import (
 	"bytes"
-	"github.com/jarcoal/httpmock"
 	"fmt"
+	"github.com/jarcoal/httpmock"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,7 +14,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"math/rand"
 )
 
 func beforeTest() {
@@ -133,7 +133,7 @@ func TestResponseHeaderTransfer(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
-		t.Fatalf("Unexpected headers\n\tExpected: %v\n\tActual: %v", expectedHeader, recorder.Header)
+		t.Fatalf("Unexpected headers\n\tExpected: %v\n\tActual: %v", expectedHeader, recorder.Header())
 	}
 }
 
@@ -263,7 +263,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 	if err != nil {
 		b.Fatal("unable to create proxy")
 	}
-	type route struct{path, endpoint string}
+	type route struct{ path, endpoint string }
 	routes := [3]route{
 		route{"/bazqux", "http://elsewhere.com"},
 		route{"/foo", "http://cnn.com"},
@@ -282,7 +282,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 		return httpmock.NewStringResponse(200, ""), nil
 	})
 
-  pathRequests := make(map[string]int)
+	pathRequests := make(map[string]int)
 	for i := 0; i < b.N; i++ {
 		n := rand.Int() % len(routes)
 		pathRequests[routes[n].path]++
@@ -294,7 +294,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 		u, _ := url.Parse(route.endpoint)
 		pathHits := pathRequests[route.path]
 		endpointHits := endpointRequests[u.Host]
-		result = append(result, fmt.Sprintf("% 8s  % 4v  %20s   % 4v    %04v  \n", route.path, pathHits, route.endpoint, endpointHits, pathHits - endpointHits)...)
+		result = append(result, fmt.Sprintf("% 8s  % 4v  %20s   % 4v    %04v  \n", route.path, pathHits, route.endpoint, endpointHits, pathHits-endpointHits)...)
 		if pathHits != endpointHits {
 			b.Errorf("Requests made to %s do not match requests received by %s\nExpected: %d\nActual %d\n", route.path, route.endpoint, pathHits, endpointHits)
 		}
