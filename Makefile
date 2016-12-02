@@ -32,8 +32,8 @@ create_dev:
 	@echo "\n== Go development image is not present. Creating..."
 	docker build -t go_dev -f environments/Dockerfile.dev .
 	@echo "\n== Creating golang dev container..."
-	docker create --name go_dev_volumes -v /go -v "$(PWD)":/go/src/moxie golang:1.7
-	docker run --rm --volumes-from go_dev_volumes go_dev get -t
+	docker create --name go_dev_volumes -v /go -v "$(PWD)":/go/src/github.com/placer14/moxie golang:1.7
+	docker run --rm --volumes-from go_dev_volumes go_dev get -t ./...
 
 clean:
 	@echo "\n== Removing containers..."

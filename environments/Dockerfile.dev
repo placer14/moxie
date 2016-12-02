@@ -1,7 +1,7 @@
 FROM golang:latest
 MAINTAINER Mike Greenberg <mg@nobulb.com>
 
-RUN mkdir -p /go/src/moxie
-WORKDIR /go/src/moxie
+RUN mkdir -p /go/src/github.com/placer14/moxie
+WORKDIR /go/src/github.com/placer14/moxie
 
 ENTRYPOINT ["/usr/local/go/bin/go"]
