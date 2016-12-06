@@ -210,8 +210,8 @@ func TestInvalidSchemeFails(t *testing.T) {
 func TestDefaultHostIsSet(t *testing.T) {
 	defaultHost := "http://192.168.1.1"
 	h, _ := New(defaultHost) // invalid URL
-	if h.DefaultHost.String() != defaultHost {
-		t.Fatal("Expected handler's DefaultHost to match argument")
+	if h.defaultHostURL.String() != defaultHost {
+		t.Fatal("Expected handler's DefaultHostURL to match argument")
 	}
 }
 

@@ -14,8 +14,8 @@ import (
 // proxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
 type proxyHandler struct {
-	DefaultHost  *url.URL
-	endpointMaps []*endpointMap
+	defaultHostURL *url.URL
+	endpointMaps   []*endpointMap
 }
 
 // New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
@@ -60,7 +60,7 @@ func (handler *proxyHandler) ServeHTTP(response http.ResponseWriter, request *ht
 			return
 		}
 	}
-	handler.handleProxyRequest(handler.DefaultHost, response, request)
+	handler.handleProxyRequest(handler.defaultHostURL, response, request)
 }
 
 func (handler *proxyHandler) handleProxyRequest(endpointURL *url.URL, response http.ResponseWriter, request *http.Request) {
@@ -93,7 +93,7 @@ func (handler *proxyHandler) setDefaultProxyHandler(subject string) error {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return errors.New("proxy: invalid default host scheme")
 	}
-	handler.DefaultHost = u
+	handler.defaultHostURL = u
 	return nil
 }
 
