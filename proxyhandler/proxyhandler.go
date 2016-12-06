@@ -87,6 +87,9 @@ func (handler *proxyHandler) setDefaultProxyHandler(subject string) error {
 	if err != nil {
 		return errors.New("proxy: invalid default host: " + err.Error())
 	}
+	if u.Host == "" {
+		return errors.New("proxy: default host is missing hostname or ip")
+	}
 	handler.defaultHostURL = u
 	return nil
 }

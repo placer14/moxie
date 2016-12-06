@@ -32,10 +32,10 @@ func TestResponseStatus(t *testing.T) {
 	defer afterTest()
 
 	expectedStatus := 999
-	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewBytesResponder(expectedStatus, nil))
+	httpmock.RegisterResponder("GET", "http://defaulthost/", httpmock.NewBytesResponder(expectedStatus, nil))
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "http://hostname/", nil)
-	h, err := New("http://hostname")
+	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
+	h, err := New("//defaulthost")
 	if err != nil {
 		t.Fatalf("Failed creating handler: %v", err.Error())
 	}
@@ -51,7 +51,7 @@ func TestRequestBodyTransfer(t *testing.T) {
 	defer afterTest()
 
 	expectedBody := []byte("This is the expected body")
-	httpmock.RegisterResponder("POST", "http://hostname/", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("POST", "http://defaulthost/", func(r *http.Request) (*http.Response, error) {
 		actualBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("Request body unreadable: %v", err.Error())
@@ -63,9 +63,12 @@ func TestRequestBodyTransfer(t *testing.T) {
 		return httpmock.NewStringResponse(200, ""), nil
 	})
 
-	req := httptest.NewRequest("POST", "http://hostname/", bytes.NewBuffer(expectedBody))
+	req := httptest.NewRequest("POST", "http://defaulthost/", bytes.NewBuffer(expectedBody))
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.ServeHTTP(httptest.NewRecorder(), req)
 }
 
@@ -74,11 +77,14 @@ func TestResponseBodyTransfer(t *testing.T) {
 	defer afterTest()
 
 	expectedBody := []byte("This is the expected body")
-	httpmock.RegisterResponder("GET", "http://hostname/", httpmock.NewBytesResponder(200, expectedBody))
-	req := httptest.NewRequest("GET", "http://hostname/", nil)
+	httpmock.RegisterResponder("GET", "http://defaulthost/", httpmock.NewBytesResponder(200, expectedBody))
+	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
 	recorder := httptest.NewRecorder()
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.ServeHTTP(recorder, req)
 	actualBody, err := ioutil.ReadAll(recorder.Body)
 	if err != nil {
@@ -98,16 +104,19 @@ func TestRequestHeaderTransfer(t *testing.T) {
 		"X-Foo": []string{"IMPORTANT"},
 		"X-Bar": []string{"here; are_some; headers"},
 	}
-	httpmock.RegisterResponder("GET", "http://hostname/", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("GET", "http://defaulthost/", func(r *http.Request) (*http.Response, error) {
 		if !reflect.DeepEqual(r.Header, expectedHeader) {
 			t.Fatalf("Unexpected headers\n\tExpected: %v\n\tActual: %v", expectedHeader, r.Header)
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("GET", "http://hostname/", nil)
+	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
 	req.Header = expectedHeader
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.ServeHTTP(httptest.NewRecorder(), req)
 }
 
@@ -125,11 +134,14 @@ func TestResponseHeaderTransfer(t *testing.T) {
 		Header: expectedHeader,
 		Body:   httpmock.NewRespBodyFromString(""),
 	})
-	httpmock.RegisterResponder("GET", "http://hostname/", mockResponder)
+	httpmock.RegisterResponder("GET", "http://defaulthost/", mockResponder)
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "http://hostname/", nil)
+	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.ServeHTTP(recorder, req)
 
 	if !reflect.DeepEqual(recorder.Header(), expectedHeader) {
@@ -143,7 +155,7 @@ func TestPostMethod(t *testing.T) {
 
 	expectedPostBody := `{"some":"json"}`
 	success := false
-	httpmock.RegisterResponder("POST", "http://hostname/", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("POST", "http://defaulthost/", func(r *http.Request) (*http.Response, error) {
 		success = true
 		actualBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -154,10 +166,13 @@ func TestPostMethod(t *testing.T) {
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("POST", "http://hostname/", strings.NewReader(expectedPostBody))
+	req := httptest.NewRequest("POST", "http://defaulthost/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.ServeHTTP(recorder, req)
 	if !success {
 		t.Error("Expected POST responder to be executed")
@@ -173,10 +188,13 @@ func TestProxyHandlesSpecificEndpoint(t *testing.T) {
 		success = true
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("GET", "http://hostname/foo", nil)
+	req := httptest.NewRequest("GET", "http://defaulthost/foo", nil)
 	recorder := httptest.NewRecorder()
 
-	h, _ := New("")
+	h, err := New("//defaulthost")
+	if err != nil {
+		t.Fatalf("unable to create proxyhandler: %s", err.Error())
+	}
 	h.HandleEndpoint("/foo", "//google.com/")
 	h.ServeHTTP(recorder, req)
 
@@ -196,11 +214,11 @@ func TestDefaultHostParsingFailure(t *testing.T) {
 	}
 }
 
-func TestDefaultHostIsSet(t *testing.T) {
-	defaultHost := "http://192.168.1.1"
-	h, _ := New(defaultHost) // invalid URL
-	if h.defaultHostURL.String() != defaultHost {
-		t.Fatal("Expected handler's DefaultHostURL to match argument")
+func TestDefaultHostContainsHost(t *testing.T) {
+	defaultHost := "http://"
+	_, err := New(defaultHost) // invalid URL
+	if err == nil {
+		t.Fatal("Expected handler to return an error when default host is empty")
 	}
 }
 
@@ -226,7 +244,7 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 	defer afterTest()
 
 	var actualError error
-	h, _ := New("hostname")
+	h, _ := New("//defaulthost")
 	actualError = h.HandleEndpoint("", "http://anotherhostname")
 	if actualError == nil {
 		t.Fatal("expected empty endpoint to return error")
@@ -248,7 +266,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 	beforeTest()
 	defer afterTest()
 
-	h, err := New("http://defaulthostname/")
+	h, err := New("//defaulthost")
 	if err != nil {
 		b.Fatal("unable to create proxy")
 	}
