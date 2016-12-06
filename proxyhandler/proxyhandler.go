@@ -95,19 +95,30 @@ func (handler *proxyHandler) setDefaultProxyHandler(subject string) error {
 }
 
 func buildProxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error) {
-	proxyRequestURL := *(r.URL)
-	if proxyOverride.Host != "" {
-		proxyRequestURL.Host = proxyOverride.Host
+	var proxiedScheme string
+	switch {
+	case proxyOverride.Scheme != "":
+		proxiedScheme = proxyOverride.Scheme
+	case r.URL.Scheme != "":
+		proxiedScheme = r.URL.Scheme
+	default:
+		proxiedScheme = "http"
 	}
-	if proxyRequestURL.Scheme == "" {
-		proxyRequestURL.Scheme = "http"
+
+	proxiedRequestURL := url.URL{
+		Scheme:     proxiedScheme,
+		Host:       proxyOverride.Host,
+		Path:       r.URL.Path,
+		RawPath:    r.URL.RawPath,
+		ForceQuery: r.URL.ForceQuery,
+		RawQuery:   r.URL.RawQuery,
 	}
 
 	// Errors on new Request can only fail on malformed URL and bad Method, both cases are
 	// caught by the server which provided the original request from the client before
 	// it was provided to the handler. The proxyOverride.Host is verified
 	// on load to protect against potential malformed URLs as well. This should never error.
-	proxyRequest, err := http.NewRequest(r.Method, proxyRequestURL.String(), r.Body)
+	proxyRequest, err := http.NewRequest(r.Method, proxiedRequestURL.String(), r.Body)
 	if err != nil {
 		return nil, err
 	}
