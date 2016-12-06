@@ -196,17 +196,6 @@ func TestDefaultHostParsingFailure(t *testing.T) {
 	}
 }
 
-func TestInvalidSchemeFails(t *testing.T) {
-	expectedError := "proxy: invalid default host scheme"
-	_, err := New("foobarbaz://localhost")
-	if err == nil {
-		t.Fatal("Expected handler to return an error when default scheme is invalid")
-	}
-	if !strings.HasPrefix(err.Error(), expectedError) {
-		t.Errorf("Expected invalid scheme error\nActual: %v\nExpected: %v", err.Error(), expectedError)
-	}
-}
-
 func TestDefaultHostIsSet(t *testing.T) {
 	defaultHost := "http://192.168.1.1"
 	h, _ := New(defaultHost) // invalid URL

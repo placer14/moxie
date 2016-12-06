@@ -18,5 +18,5 @@ services:
       - echohttpd
     ports:
       - "8080:8080"
-    entrypoint: go run moxie.go --port 8000 --host http://echohttpd
+    entrypoint: go run moxie.go --proxied-port 8000 --proxied-host echohttpd
 
