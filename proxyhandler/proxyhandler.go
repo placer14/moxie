@@ -70,8 +70,7 @@ func (handler *proxyHandler) handleProxyRequest(endpointURL *url.URL, response h
 		return
 	}
 	log.Printf("Got request %s\n\tAsking for %s", request.URL.String(), proxyRequest.URL.String())
-	c := &http.Client{}
-	resp, err := c.Do(proxyRequest)
+	resp, err := http.DefaultClient.Do(proxyRequest)
 	if err != nil {
 		handleUnexpectedHandlingError(err, response)
 		return
