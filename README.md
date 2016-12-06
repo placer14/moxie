@@ -25,7 +25,17 @@ test dependencies and execute all the tests from within the environment.
 ### Building Development
 
 `make dev` will create a container inside which you have full access
-to an isolated service called *dev*.
+to an isolated container environment called *dev*.
+
+Alternatively, you can run a command inside your container directly from
+the prompt by using `docker-compose run --rm --entrypoint <command> dev
+<arguments>`, like this:
+
+`docker-compose run --rm --entrypoint go dev test ./...`
+
+or you can just type it without the `--entrypoint` since `go` is already
+the default entrypoint of *dev* which you can see by examining
+`environments/Dockerfile.dev`.
 
 Note: Make targets output their commands so you can copy and run them
 directly. Don't worry about making a mess as `make clean` does a good
@@ -82,13 +92,18 @@ in its HTTP/1.x wire representation into the body of a HTTP 200 OK response as
 well as on STDOUT in the tty the process was started on.
 
 From within *dev*:
-`go run echohttpd/echohttpd.go`
+`go run tools/echohttpd.go`
 
 Multiple copies of this may be used by providing each copy with a unique
-port to run on via the `-p` flag.
+port to run on via the `--port` flag.
 
 From within *dev*:
-`go run echohttpd/echohttpd.go -p 9999`
+`go run tools/echohttpd.go --port 9999`
+
+Alternatively, you can setup both containers ready to to talk to each
+other.
+
+`docker-compose -f environments/docker-compose-echo.yml up`
 
 ### Makefile
 

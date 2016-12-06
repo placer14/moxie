@@ -1,14 +1,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
-	"log"
-	"flag"
 )
 
-var port = flag.Int("p", 8000, "port to listen on")
+var port = flag.Int("port", 8000, "port to listen on")
 
 func main() {
 	flag.Parse()

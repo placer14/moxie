@@ -7,27 +7,15 @@ services:
   dev:
     build:
       context: .
-      dockerfile: ./environments/Dockerfile.dev
+      dockerfile: environments/Dockerfile.dev
     volumes:
       - go_path:/go
       - .:/go/src/github.com/placer14/moxie
-    ports:
-      - "8080:8080"
-
-  moxie:
-    build:
-      context: .
-      dockerfile: ./environments/Dockerfile.dev
-    volumes_from:
-      - dev
-    ports:
-      - "8080:8080"
-    entrypoint: go run moxie.go
 
   production:
     build:
       context: .
-      dockerfile: ./environments/Dockerfile.prod
+      dockerfile: environments/Dockerfile.prod
     ports:
       - "8080:8080"
 

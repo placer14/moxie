@@ -1,0 +1,19 @@
+version: '2'
+
+services:
+  echohttpd:
+    extends:
+      file: ../docker-compose.yml
+      service: dev
+    entrypoint: go run tools/echohttpd.go
+
+  moxie:
+    extends:
+      file: ../docker-compose.yml
+      service: dev
+    links:
+      - echohttpd
+    ports:
+      - "8080:8080"
+    entrypoint: go run moxie.go --port 8000 --host http://echohttpd
+
