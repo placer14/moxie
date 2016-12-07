@@ -8,18 +8,19 @@ import (
 	"net/http"
 )
 
-var host = flag.String("host", "0.0.0.0", "default host to proxy traffic")
-var port = flag.String("port", "8000", "default port to proxy traffic")
+var listen_port = flag.String("port", "8080", "specify which port the proxy should listen on")
+var default_host = flag.String("proxied-host", "0.0.0.0", "default host to recieve proxied traffic")
+var default_port = flag.String("proxied-port", "8000", "default port to revieve proxied traffic")
 
 func main() {
 	flag.Parse()
-	log.Printf("Binding proxy server to %s:%s...", *host, *port)
+	log.Printf("Pointing proxy server to default host %s:%s...", *default_host, *default_port)
 
-	p, err := proxyhandler.New(fmt.Sprintf("http://%s:%s", *host, *port))
+	p, err := proxyhandler.New(fmt.Sprintf("http://%s:%s", *default_host, *default_port))
 	if err != nil {
-		log.Fatal("Invalid proxied server URI")
+		log.Fatalf("Error creating proxy: %s", err.Error())
 	}
 
-	log.Println("Listening on port 8080...")
-	log.Fatalln(http.ListenAndServe(":8080", p))
+	log.Printf("Listening on port %s...", *listen_port)
+	log.Fatalln(http.ListenAndServe(fmt.Sprintf(":%s", *listen_port), p))
 }

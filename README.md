@@ -48,9 +48,9 @@ has the built moxie.go binary as the entrypoint. This will also run
 tests and execute a container based on the image for added confidence!
 
 Exiting from the container will cause it to be destroyed, however the
-image `production:latest` will persist for further use.
+image `moxie_production:latest` will persist for further use.
 
-Each execution of `make prod` will destroy the existing `production:latest` image
+Each execution of `make prod` will destroy the existing `moxie_production:latest` image
 and produce a new one. (Note: Intermediate images used during the creation of
 the production image are not destroyed.)
 
@@ -83,6 +83,24 @@ server binary.
 ## Development Tools
 
 There are a few tools which may be useful for use in development.
+
+### moxie
+
+This is manages setting up the proxyHandler and handing it off to the
+golang http server. There are a few flag available to change its
+behavior:
+
+> `--port <valid port>`
+
+define which port the proxy should bind to on the local host
+
+> `--proxied-host <IP or FQDN>`
+
+define a new host to recieve proxied traffic when no routes match the request
+
+> `--proxied-port <valid port>`
+
+define a new port to recieve proxied traffic when no routes match the request
 
 ### echohttpd
 
