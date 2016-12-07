@@ -3,7 +3,6 @@
 package proxyhandler
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -50,7 +49,7 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
 	route, err := newRoute(path, endpoint)
 	if err != nil {
-		return errors.New("proxy: error handling endpoint:" + err.Error())
+		return fmt.Errorf("proxy: error handling endpoint: %s", err.Error())
 	}
 	handler.routes = append(handler.routes, route)
 	return nil
@@ -74,25 +73,26 @@ func (handler *proxyHandler) handleProxyRequest(routeEndpointURL *url.URL, upstr
 	}
 
 	log.Printf("proxy: request %s -> %s %s", upstreamRequest.URL.String(), downstreamRequest.Method, downstreamRequest.URL.String())
+
 	downstreamResponse, err := http.DefaultClient.Do(downstreamRequest)
 	if err != nil {
-		handleUnexpectedError(err, upstreamWriter)
+		handleUnexpectedError(fmt.Errorf(""), upstreamWriter)
 		return
 	}
 
 	defer downstreamResponse.Body.Close()
-	upstreamWriter.WriteHeader(downstreamResponse.StatusCode)
 	copyHeaders(upstreamWriter.Header(), downstreamResponse.Header)
+	upstreamWriter.WriteHeader(downstreamResponse.StatusCode)
 	io.Copy(upstreamWriter, downstreamResponse.Body)
 }
 
 func (handler *proxyHandler) setDefaultHostURL(host string) error {
 	defaultHostURL, err := url.Parse(host)
 	if err != nil {
-		return errors.New("proxy: invalid default host: " + err.Error())
+		return fmt.Errorf("proxy: invalid default host: %s", err.Error())
 	}
 	if defaultHostURL.Host == "" {
-		return errors.New("proxy: default host is missing hostname or ip")
+		return fmt.Errorf("proxy: default host is missing hostname or ip")
 	}
 	handler.defaultHostURL = defaultHostURL
 	return nil
@@ -127,18 +127,19 @@ func buildProxyRequest(upstreamRequest *http.Request, routeOverrideURL *url.URL)
 	return proxyRequest, nil
 }
 
-func handleUnexpectedError(err error, w http.ResponseWriter) {
+func handleUnexpectedError(err error, writer http.ResponseWriter) {
 	// No test coverage here, beware regressions within
 	log.Printf("http request: %v", err.Error())
-	w.WriteHeader(500)
-	w.Header().Set("X-Error", fmt.Sprintf("Unexpected proxied request failure: %s", err.Error()))
-	w.Write([]byte("Proxy error: " + err.Error()))
+	header := writer.Header()
+	header.Add("X-Error", fmt.Sprintf("Unexpected proxied request failure: %s", err.Error()))
+	writer.WriteHeader(500)
+	writer.Write([]byte("Proxy error: " + err.Error()))
 }
 
 func copyHeaders(destination, source http.Header) {
-	for k, vs := range source {
-		for _, v := range vs {
-			destination.Add(k, v)
+	for headerKey, headerValues := range source {
+		for _, headerValue := range headerValues {
+			destination.Add(headerKey, headerValue)
 		}
 	}
 }
