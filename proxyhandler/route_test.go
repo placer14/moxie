@@ -5,19 +5,19 @@ import (
 	"testing"
 )
 
-func TestNewCreatesRouteMap(t *testing.T) {
+func TestNewRoute(t *testing.T) {
 	path := "/"
 	endpoint := "http://hostname/"
 
-	endpointMap, err := newEndpointMap(path, endpoint)
+	route, err := newRoute(path, endpoint)
 	if err != nil {
-		t.Fatal("error creating new endpointMap")
+		t.Fatal("error creating new route")
 	}
 
-	if endpointMap.path != path {
+	if route.path != path {
 		t.Error("path is not set")
 	}
-	if endpointMap.endpointURL.String() != endpoint {
+	if route.endpointURL.String() != endpoint {
 		t.Error("endpoint is not set")
 	}
 }
@@ -27,7 +27,7 @@ func TestNewValidatesPathExists(t *testing.T) {
 	endpoint := "http://hostname/"
 	expectedError := "path is empty"
 
-	_, err := newEndpointMap(emptyPath, endpoint)
+	_, err := newRoute(emptyPath, endpoint)
 	if err == nil {
 		t.Fatal("expected error to be returned")
 	}
@@ -39,7 +39,7 @@ func TestNewValidatesPathExists(t *testing.T) {
 func TestNewValidatesHostExists(t *testing.T) {
 	expectedError := "host is empty"
 
-	_, err := newEndpointMap("/", "//")
+	_, err := newRoute("/", "//")
 	if err == nil {
 		t.Fatal("expected error to be returned")
 	}
@@ -53,7 +53,7 @@ func TestNewValidatesEndpointUrl(t *testing.T) {
 	invalidEndpoint := "http://invalid%23hostname/"
 	expectedError := "invalid endpoint url:"
 
-	_, err := newEndpointMap(path, invalidEndpoint)
+	_, err := newRoute(path, invalidEndpoint)
 	if err == nil {
 		t.Fatal("expected error to be returned")
 	}

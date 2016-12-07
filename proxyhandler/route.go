@@ -2,28 +2,25 @@ package proxyhandler
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 )
 
-type endpointMap struct {
+type route struct {
 	path        string
 	endpointURL *url.URL
 }
 
-func newEndpointMap(path, endpoint string) (route *endpointMap, err error) {
+func newRoute(path, endpoint string) (*route, error) {
 	if len(path) == 0 {
 		return nil, errors.New("path is empty")
 	}
 	url, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, errors.New("invalid endpoint url: " + err.Error())
+		return nil, fmt.Errorf("invalid endpoint url: %s", err.Error())
 	}
 	if url.Host == "" {
 		return nil, errors.New("host is empty")
 	}
-	route = &endpointMap{
-		path:        path,
-		endpointURL: url,
-	}
-	return
+	return &route{path: path, endpointURL: url}, nil
 }
