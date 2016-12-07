@@ -4,6 +4,7 @@ package proxyhandler
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -18,11 +19,11 @@ type proxyHandler struct {
 	routes         []*route
 }
 
-// New creates allocates a zero-value proxyHandler and returns its pointer. defaultProxiedServer
-// will provide the default host for handling routes which are not defined in the proxy
+// New creates allocates a zero-value proxyHandler and returns its pointer. It will
+// return an error if defaultProxiedHost cannot be parsed by url.Parse()
 func New(defaultProxiedHost string) (*proxyHandler, error) {
 	handler := proxyHandler{}
-	err := handler.setDefaultProxyHandler(defaultProxiedHost)
+	err := handler.setDefaultHostURL(defaultProxiedHost)
 	if err != nil {
 		return nil, err
 	}
@@ -32,8 +33,10 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 
 // HandleEndpoint accepts a string `path` which is compared against incoming Requests.
 // If the `path` matches the incoming Request.RequestURI, the Host value from `endpoint`
-// is used in the resulting HTTP request instead. Each endpoint is considered in the
-// same order they are registered to `proxyHandler`.
+// is used in the resulting HTTP request instead. HandleEndpoint will return an error if
+// the route is created with invalid arguments
+//
+// Each endpoint is considered in the same order they are registered to `proxyHandler`.
 //
 // Example:
 //
@@ -53,85 +56,82 @@ func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
 	return nil
 }
 
-func (handler *proxyHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+func (handler *proxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	for _, routeMap := range handler.routes {
 		if strings.HasPrefix(request.URL.Path, routeMap.path) {
-			handler.handleProxyRequest(routeMap.endpointURL, response, request)
+			handler.handleProxyRequest(routeMap.endpointURL, writer, request)
 			return
 		}
 	}
-	handler.handleProxyRequest(handler.defaultHostURL, response, request)
+	handler.handleProxyRequest(handler.defaultHostURL, writer, request)
 }
 
-func (handler *proxyHandler) handleProxyRequest(endpointURL *url.URL, response http.ResponseWriter, request *http.Request) {
-	proxyRequest, err := buildProxyRequest(request, endpointURL)
+func (handler *proxyHandler) handleProxyRequest(routeEndpointURL *url.URL, upstreamWriter http.ResponseWriter, upstreamRequest *http.Request) {
+	downstreamRequest, err := buildProxyRequest(upstreamRequest, routeEndpointURL)
 	if err != nil {
-		handleUnexpectedHandlingError(err, response)
+		handleUnexpectedError(err, upstreamWriter)
 		return
 	}
-	log.Printf("Got request %s\n\tAsking for %s", request.URL.String(), proxyRequest.URL.String())
-	resp, err := http.DefaultClient.Do(proxyRequest)
+
+	log.Printf("proxy: request %s -> %s %s", upstreamRequest.URL.String(), downstreamRequest.Method, downstreamRequest.URL.String())
+	downstreamResponse, err := http.DefaultClient.Do(downstreamRequest)
 	if err != nil {
-		handleUnexpectedHandlingError(err, response)
+		handleUnexpectedError(err, upstreamWriter)
 		return
-	} else {
-		defer resp.Body.Close()
-		response.WriteHeader(resp.StatusCode)
-		copyHeaders(response.Header(), resp.Header)
-		io.Copy(response, resp.Body)
 	}
+
+	defer downstreamResponse.Body.Close()
+	upstreamWriter.WriteHeader(downstreamResponse.StatusCode)
+	copyHeaders(upstreamWriter.Header(), downstreamResponse.Header)
+	io.Copy(upstreamWriter, downstreamResponse.Body)
 }
 
-func (handler *proxyHandler) setDefaultProxyHandler(subject string) error {
-	u, err := url.Parse(subject)
+func (handler *proxyHandler) setDefaultHostURL(host string) error {
+	defaultHostURL, err := url.Parse(host)
 	if err != nil {
 		return errors.New("proxy: invalid default host: " + err.Error())
 	}
-	if u.Host == "" {
+	if defaultHostURL.Host == "" {
 		return errors.New("proxy: default host is missing hostname or ip")
 	}
-	handler.defaultHostURL = u
+	handler.defaultHostURL = defaultHostURL
 	return nil
 }
 
-func buildProxyRequest(r *http.Request, proxyOverride *url.URL) (*http.Request, error) {
-	var proxiedScheme string
+func buildProxyRequest(upstreamRequest *http.Request, routeOverrideURL *url.URL) (*http.Request, error) {
+	var schemeOverride string
 	switch {
-	case proxyOverride.Scheme != "":
-		proxiedScheme = proxyOverride.Scheme
-	case r.URL.Scheme != "":
-		proxiedScheme = r.URL.Scheme
+	case routeOverrideURL.Scheme != "":
+		schemeOverride = routeOverrideURL.Scheme
+	case upstreamRequest.URL.Scheme != "":
+		schemeOverride = upstreamRequest.URL.Scheme
 	default:
-		proxiedScheme = "http"
+		schemeOverride = "http"
 	}
 
 	proxiedRequestURL := url.URL{
-		Scheme:     proxiedScheme,
-		Host:       proxyOverride.Host,
-		Path:       r.URL.Path,
-		RawPath:    r.URL.RawPath,
-		ForceQuery: r.URL.ForceQuery,
-		RawQuery:   r.URL.RawQuery,
+		Scheme:     schemeOverride,
+		Host:       routeOverrideURL.Host,
+		Path:       upstreamRequest.URL.Path,
+		RawPath:    upstreamRequest.URL.RawPath,
+		ForceQuery: upstreamRequest.URL.ForceQuery,
+		RawQuery:   upstreamRequest.URL.RawQuery,
 	}
 
-	// Errors on new Request can only fail on malformed URL and bad Method, both cases are
-	// caught by the server which provided the original request from the client before
-	// it was provided to the handler. The proxyOverride.Host is verified
-	// on load to protect against potential malformed URLs as well. This should never error.
-	proxyRequest, err := http.NewRequest(r.Method, proxiedRequestURL.String(), r.Body)
+	// Unsure how this might return an error as parts for proxiedRequestURL should be valid.
+	proxyRequest, err := http.NewRequest(upstreamRequest.Method, proxiedRequestURL.String(), upstreamRequest.Body)
 	if err != nil {
 		return nil, err
 	}
-	copyHeaders(proxyRequest.Header, r.Header)
+	copyHeaders(proxyRequest.Header, upstreamRequest.Header)
 	return proxyRequest, nil
 }
 
-func handleUnexpectedHandlingError(err error, w http.ResponseWriter) {
+func handleUnexpectedError(err error, w http.ResponseWriter) {
 	// No test coverage here, beware regressions within
 	log.Printf("http request: %v", err.Error())
 	w.WriteHeader(500)
-	w.Header().Set("X-Error", "Unexpected proxied request failure:")
-	w.Header().Add("X-Error", err.Error())
+	w.Header().Set("X-Error", fmt.Sprintf("Unexpected proxied request failure: %s", err.Error()))
 	w.Write([]byte("Proxy error: " + err.Error()))
 }
 
