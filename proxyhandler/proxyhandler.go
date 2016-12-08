@@ -4,6 +4,7 @@ package proxyhandler
 
 import (
 	"fmt"
+	"github.com/placer14/moxie/route"
 	"io"
 	"log"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 // prior to completing the request.
 type proxyHandler struct {
 	defaultHostURL *url.URL
-	routes         []*route
+	routes         []*route.Route
 }
 
 // New creates allocates a zero-value proxyHandler and returns its pointer. It will
@@ -26,7 +27,7 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler.routes = make([]*route, 0, 0)
+	handler.routes = make([]*route.Route, 0, 0)
 	return &handler, nil
 }
 
@@ -47,7 +48,7 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 // A request for `/foo` against the server using this handler would have the request
 // proxied to `www.baz.com` instead of `www.test.com` because it was registered first.
 func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
-	route, err := newRoute(path, endpoint)
+	route, err := route.NewRoute(path, endpoint)
 	if err != nil {
 		return fmt.Errorf("proxy: error handling endpoint: %s", err.Error())
 	}
@@ -57,8 +58,8 @@ func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
 
 func (handler *proxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	for _, routeMap := range handler.routes {
-		if strings.HasPrefix(request.URL.Path, routeMap.path) {
-			handler.handleProxyRequest(routeMap.endpointURL, writer, request)
+		if strings.HasPrefix(request.URL.Path, routeMap.Path) {
+			handler.handleProxyRequest(routeMap.EndpointURL, writer, request)
 			return
 		}
 	}
