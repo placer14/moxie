@@ -1,27 +1,25 @@
 all: prod
 
 test:
-	docker-compose run --rm dev get -t ./...
-	docker-compose run --rm dev test ./...
+	docker-compose run --rm --entrypoint go moxie get -t ./...
+	docker-compose run --rm --entrypoint go moxie test ./...
 
 prod:
 	@echo "\n== Running tests..."
 	@make test
 	@echo "\n== Building binary..."
-	docker-compose run --rm dev build -o moxie moxie.go
-	@echo "\n== Creating final image moxie:latest..."
-	docker-compose build production
+	docker-compose run --rm --entrypoint go moxie build -o moxie moxie.go
+	@echo "\n== Creating final image moxie_production:latest..."
+	docker build -f environments/Dockerfile.moxie --no-cache -t moxie_production:latest .
 	rm moxie
-	@echo "\n== Complete. All systems GO! (Press Ctrl+C to exit.)\n"
-	docker-compose run --rm production
+	@echo "\n== Complete."
 
-dev:
-	docker-compose run --rm --entrypoint /bin/bash dev
-
-rebuild_dev:
-	docker-compose build --no-cache dev
-	docker-compose run --rm dev get -t ./...
+echo:
+	@echo "\n== Building echohttpd image..."
+	docker-compose run --rm --entrypoint go moxie build -o echohttpd tools/echohttpd.go
+	docker build -f environments/Dockerfile.echohttpd --no-cache -t echohttpd:latest .
+	rm echohttpd
+	@echo "\n== Complete."
 
 clean:
-	@echo "\n== Removing containers..."
 	@docker-compose down -v --rmi all

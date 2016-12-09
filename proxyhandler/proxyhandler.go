@@ -74,10 +74,9 @@ func (handler *proxyHandler) handleProxyRequest(routeEndpointURL *url.URL, upstr
 	}
 
 	log.Printf("proxy: request %s -> %s %s", upstreamRequest.URL.String(), downstreamRequest.Method, downstreamRequest.URL.String())
-
 	downstreamResponse, err := http.DefaultClient.Do(downstreamRequest)
 	if err != nil {
-		handleUnexpectedError(fmt.Errorf(""), upstreamWriter)
+		handleUnexpectedError(err, upstreamWriter)
 		return
 	}
 
@@ -130,7 +129,7 @@ func buildProxyRequest(upstreamRequest *http.Request, routeOverrideURL *url.URL)
 
 func handleUnexpectedError(err error, writer http.ResponseWriter) {
 	// No test coverage here, beware regressions within
-	log.Printf("http request: %v", err.Error())
+	log.Printf("http request: %s", err.Error())
 	header := writer.Header()
 	header.Add("X-Error", fmt.Sprintf("Unexpected proxied request failure: %s", err.Error()))
 	writer.WriteHeader(500)

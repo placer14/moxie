@@ -1,0 +1,7 @@
+FROM ubuntu:latest
+MAINTAINER Mike Greenberg <mg@nobulb.com>
+
+COPY ./echohttpd /usr/bin/echohttpd
+RUN chmod +x /usr/bin/echohttpd
+
+ENTRYPOINT ["echohttpd"]

@@ -24,35 +24,24 @@ test dependencies and execute all the tests from within the environment.
 
 ### Building Development
 
-`make dev` will create a container inside which you have full access
-to an isolated container environment called *dev*.
+`docker-compose up` will create the production-like stack of services with moxie
+listening on multiple backends. Examine the docker-compose.yml file to
+see which containers are running which services.
 
 Alternatively, you can run a command inside your container directly from
-the prompt by using `docker-compose run --rm --entrypoint <command> dev
-<arguments>`, like this:
+the prompt by using `docker-compose run --rm --entrypoint <command>
+moxie <arguments>`, like this:
 
-`docker-compose run --rm --entrypoint go dev test ./...`
-
-or you can just type it without the `--entrypoint` since `go` is already
-the default entrypoint of *dev* which you can see by examining
-`environments/Dockerfile.dev`.
-
-Note: Make targets output their commands so you can copy and run them
-directly. Don't worry about making a mess as `make clean` does a good
-job cleaning up.
+`docker-compose run --rm --entrypoint go moxie test ./...`
 
 ### Building Production
 
-`make prod` will produce a new Docker image called `production:latest` which
-has the built moxie.go binary as the entrypoint. This will also run
-tests and execute a container based on the image for added confidence!
+`make prod` will produce a new Docker image called `moxie_production` which
+has the built moxie.go binary as the entrypoint.
 
-Exiting from the container will cause it to be destroyed, however the
-image `moxie_production:latest` will persist for further use.
-
-Each execution of `make prod` will destroy the existing `moxie_production:latest` image
-and produce a new one. (Note: Intermediate images used during the creation of
-the production image are not destroyed.)
+Each execution of `make prod` will destroy the existing `moxie_production`
+image and produce a new one. (Note: Intermediate images used during the
+creation of the production image are not destroyed.)
 
 This is the default target and may be called with just `make`.
 
@@ -63,21 +52,30 @@ docker-compose and attempts to provide a clean zero-state for your host.
 
 ### Example Development Cadence
 
-The local repository is mounted to `/go/src/moxie` within the
+The local repository is mounted to `/go/src/github.com/placer14/moxie` within the
 development environment provided with standard golang tools. A typical
 development cadence may look like:
 
 1. **Make changes**. Using your editor of choice from your host. The
-working directory is mounted within *dev* and will mirror changes you
-make in the filesystem.
-2. **Create and attach to development environment.** `make dev` which creates
-the env (if missing) and then attaches you to your newly created *dev*.
-3. **Run tests.** `go test <path>` within *dev* or `make test` on local host.
-4. **Or execute moxie.** `go run moxie.go` within *dev* will start moxie
-on port 8080. When `make dev` attaches you to *dev*, it maps your
-localhost's port 8080 to the container's port 8080. This allows you to
-`curl` from inside or outside of the container.
-5. **Or build a production image.** `make prod` which tests, creates and runs
+working directory is mounted within the moxie service and will mirror changes
+you make in the filesystem.
+2. **Create and attach to development environment.** `docker-compose up`
+which creates and runs moxie along with simulated production backends.
+You may also start individual services by specifying their service name
+as defined in docker-compose.yml. `docker-compose up <service_name>`
+3. **Run tests.** `go test <path>` within the moxie service container or
+`make test` on local host.
+4. **Or execute moxie.** Stop your existing moxie service.
+`docker-compose stop moxie`. Then run the container again such that you can
+run it manually.
+
+`docker-compose run --rm --entrypoint /bin/bash -p 8080:8080 moxie`
+
+`go run moxie.go` once attached to the moxie service.
+
+`-p` maps your localhost's port 8080 to the container's port 8080 and allows
+you to `curl` from inside or outside of the container.
+5. **Or build a production image.** `make prod` which tests and creates the
 server binary.
 
 ## Development Tools
@@ -133,21 +131,18 @@ inital execution and not after each target is completed.
 
 Under the hood of the Makefile, we are using docker-compose to orchestrate
 Docker containers to provide our golang environment. You may run your
-own commands against *dev* using the following incantations:
+own commands using the following incantations:
 
-*Run a go subcommand* `docker-compose run dev test ./...`
+*Run a go subcommand*
 
-The default starting command of the container (the entrypoint) is the go
-binary and will accept go subcommands by default. This runs the test
-subcommand on the repo mounted inside of the container.
+`docker-compose run --rm --entrypoint go moxie test ./...`
 
-*Start a bash prompt inside container* `docker-compose run --entrypoint /bin/bash dev`
+This runs the test subcommand on the repo mounted inside of the container.
+
+*Start a bash prompt inside container*
+
+`docker-compose run --rm --entrypoint /bin/bash moxie`
 
 This changes the default starting command of the container (the
 entrypoint) to another command, in this case, bash.
-
-*Run another go tool inside container* `docker-compose run --entrypoint gofmt dev moxie.go`
-
-This will run the gofmt tool on the moxie.go file mounted within the
-container.
 
