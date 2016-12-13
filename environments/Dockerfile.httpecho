@@ -1,0 +1,7 @@
+FROM ubuntu:latest
+MAINTAINER Mike Greenberg <mg@nobulb.com>
+
+COPY ./httpecho /usr/bin/httpecho
+RUN chmod +x /usr/bin/httpecho
+
+ENTRYPOINT ["httpecho"]

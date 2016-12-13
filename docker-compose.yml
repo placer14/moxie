@@ -15,32 +15,37 @@ services:
       - "8080:8080"
     entrypoint: go run moxie.go
 
-  defaulthost:
+  http_one:
     build:
       context: .
       dockerfile: environments/Dockerfile.dev
     volumes:
       - go_path:/go
       - .:/go/src/github.com/placer14/moxie
-    entrypoint: go run tools/echohttpd.go
-
-  backendone:
-    build:
-      context: .
-      dockerfile: environments/Dockerfile.dev
-    volumes:
-      - go_path:/go
-      - .:/go/src/github.com/placer14/moxie
-    entrypoint: go run tools/echohttpd.go
+    entrypoint: go run tools/httpecho.go
     command: --port 8001
 
-  backendtwo:
+  http_two:
     build:
       context: .
       dockerfile: environments/Dockerfile.dev
     volumes:
       - go_path:/go
       - .:/go/src/github.com/placer14/moxie
-    entrypoint: go run tools/echohttpd.go
+    entrypoint: go run tools/httpecho.go
     command: --port 8002
 
+  http_three:
+    build:
+      context: .
+      dockerfile: environments/Dockerfile.dev
+    volumes:
+      - go_path:/go
+      - .:/go/src/github.com/placer14/moxie
+    entrypoint: go run tools/httpecho.go
+    command: --port 8000
+
+  websocket_one:
+    build:
+      context: tools/websocket_echo_server
+      dockerfile: Dockerfile

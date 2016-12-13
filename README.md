@@ -14,9 +14,6 @@ the $PATH on your host:
 - docker (tested with 1.12)
 - docker-compose (tested with 1.9.0)
 
-*gnumake* is used to manage the development resources and are described
-below.
-
 ### Testing
 
 `make test` will create the dev environment, and then `go get` the
@@ -36,10 +33,10 @@ moxie <arguments>`, like this:
 
 ### Building Production
 
-`make prod` will produce a new Docker image called `moxie_production` which
+`make moxie` will produce a new Docker image called `moxie_production` which
 has the built moxie.go binary as the entrypoint.
 
-Each execution of `make prod` will destroy the existing `moxie_production`
+Each execution of `make moxie` will destroy the existing `moxie_production`
 image and produce a new one. (Note: Intermediate images used during the
 creation of the production image are not destroyed.)
 
@@ -75,7 +72,7 @@ run it manually.
 
 `-p` maps your localhost's port 8080 to the container's port 8080 and allows
 you to `curl` from inside or outside of the container.
-5. **Or build a production image.** `make prod` which tests and creates the
+5. **Or build a production image.** `make moxie` which tests and creates the
 server binary.
 
 ## Development Tools
@@ -100,7 +97,7 @@ define a new host to recieve proxied traffic when no routes match the request
 
 define a new port to recieve proxied traffic when no routes match the request
 
-### echohttpd
+### httpecho
 
 This is a dummy endpoint useful for testing moxie in a safe environment. When
 run, it will listen on default port 8000 and echo the received request
@@ -108,18 +105,36 @@ in its HTTP/1.x wire representation into the body of a HTTP 200 OK response as
 well as on STDOUT in the tty the process was started on.
 
 From within *dev*:
-`go run tools/echohttpd.go`
+`go run tools/httpecho.go`
 
 Multiple copies of this may be used by providing each copy with a unique
 port to run on via the `--port` flag.
 
 From within *dev*:
-`go run tools/echohttpd.go --port 9999`
+`go run tools/httpecho.go --port 9999`
 
 Alternatively, you can setup both containers ready to to talk to each
 other.
 
 `docker-compose -f environments/docker-compose-echo.yml up`
+
+### websocket_echo_server
+
+This is a dummy endpoint useful for testing websockets through moxie in
+a safe environment. It is a node-js chat application which serves an
+index.html with javascript necessary to connect to the server. By
+default, the server is configured inside public/index.html to connect to
+0.0.0.0:8080 which should allow your browser to connect to the server
+when the stack is started with `docker-compose up`. Any websocket client
+should be able to connnect and pass message frames back and forth.
+
+The files are currently baked into the image and would need to be
+rebuilt if editted. You can remove existing containers and images with
+`make clean`.
+
+This example was found quickly on the internet and the quality within is
+questionable at best. This dummy is likely to be replaces at any time.
+EDIT AT YOUR OWN RISK!
 
 ### Makefile
 

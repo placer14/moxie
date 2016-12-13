@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-const defaultHostValue = "defaulthost"
+const defaultHostValue = "http_three"
 const defaultPortValue = 8000
 
 var listenPort = flag.Int("port", 8080, "specify which port the proxy should listen on")
@@ -18,8 +18,9 @@ var defaultPort = flag.Int("proxied-port", defaultPortValue, "default port to re
 type route struct{ path, endpoint string }
 
 var routes = []route{
-	route{path: "/foo", endpoint: "//backendone:8001"},
-	route{path: "/bar", endpoint: "//backendtwo:8002"},
+	route{path: "/foo", endpoint: "//http_one:8001"},
+	route{path: "/bar", endpoint: "//http_two:8002"},
+	route{path: "/", endpoint: "//websocket_one"},
 }
 
 func main() {
