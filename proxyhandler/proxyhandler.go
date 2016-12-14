@@ -4,6 +4,7 @@ package proxyhandler
 
 import (
 	"fmt"
+	"github.com/koding/websocketproxy"
 	"io"
 	"log"
 	"net/http"
@@ -11,21 +12,27 @@ import (
 	"strings"
 )
 
-// proxyHandler implements http.Handler and will override portions of the request URI
+// ProxyHandler implements http.Handler and will override portions of the request URI
 // prior to completing the request.
-type proxyHandler struct {
+type ProxyHandler struct {
 	defaultHostURL *url.URL
 	routes         []*validRouteRule
 }
 
-// New creates allocates a zero-value proxyHandler and returns its pointer. It will
-// return an error if defaultProxiedHost cannot be parsed by url.Parse()
-func New(defaultProxiedHost string) (*proxyHandler, error) {
-	handler := proxyHandler{}
-	err := handler.setDefaultHostURL(defaultProxiedHost)
-	if err != nil {
-		return nil, err
+// New creates a valid ProxyHandler and returns its pointer. It will
+// return an error if the defaultRouteRule is invalid
+func New(defaultEndpoint string) (*ProxyHandler, error) {
+	route := &RouteRule{
+		Path:     "*", // this non-empty path will satisfy validation, but is not used for routing
+		Endpoint: defaultEndpoint,
 	}
+	validRoute, err := route.validate()
+	if err != nil {
+		return nil, fmt.Errorf("proxy: invalid default host: %s", err.Error())
+	}
+	log.Printf("Creating proxy server pointed at default backend %s...", validRoute.EndpointURL.String())
+	handler := ProxyHandler{}
+	handler.defaultHostURL = validRoute.EndpointURL
 	handler.routes = make([]*validRouteRule, 0, 0)
 	return &handler, nil
 }
@@ -37,38 +44,67 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 // from `endpoint` is used in the resulting HTTP request instead. HandleEndpoint will
 // return an error if the RouteRule is invalid
 //
-// The RouteRules are considered in the same order they are registered to `proxyHandler`:
+// The RouteRules are considered in the same order they are registered to `ProxyHandler`:
 //
 // If you were to register two endpoints like so:
 //
-// handler.HandleEndpoint("/", "www.baz.com")
-// handler.HandleEndpoint("/foo", "www.test.com")
+// handler.HandleEndpoint(&RouteRule{ Path: "/", Endpoint: "//baz.com" })
+// handler.HandleEndpoint(&RouteRule{ Path: "/foo", Endpoint: "//test.com" })
 //
 // A request for `/foo` against the server using this handler would have the request
-// proxied to `www.baz.com` instead of `www.test.com`. This is because `/foo` contains
+// proxied to `baz.com` instead of `test.com`. This is because `/foo` contains
 // the first rule's path `/` at the beginning and was registered before the rule containing
 // the path `/foo`. It is recommended that you register more specific rules before rules
 // with less specificity.
-func (handler *proxyHandler) HandleEndpoint(route *RouteRule) error {
+func (handler *ProxyHandler) HandleEndpoint(route *RouteRule) error {
 	validRoute, err := route.validate()
 	if err != nil {
 		return fmt.Errorf("proxy: error handling endpoint: %s", err.Error())
 	}
+	log.Printf("\tAdding route %s -> %s", validRoute.Path, validRoute.EndpointURL.String())
 	handler.routes = append(handler.routes, validRoute)
 	return nil
 }
 
-func (handler *proxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (handler *ProxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	for _, routeMap := range handler.routes {
 		if strings.HasPrefix(request.URL.Path, routeMap.Path) {
-			handler.handleProxyRequest(routeMap.EndpointURL, writer, request)
+			if routeMap.WebsocketEnabled {
+				handler.handleWebsocketRequest(routeMap.EndpointURL, writer, request)
+				return
+			}
+			handler.handleHTTPRequest(routeMap.EndpointURL, writer, request)
 			return
 		}
 	}
-	handler.handleProxyRequest(handler.defaultHostURL, writer, request)
+	handler.handleHTTPRequest(handler.defaultHostURL, writer, request)
 }
 
-func (handler *proxyHandler) handleProxyRequest(routeEndpointURL *url.URL, upstreamWriter http.ResponseWriter, upstreamRequest *http.Request) {
+func buildDownstreamRequestURL(upstreamRequestURL, routeRuleURL *url.URL) *url.URL {
+	return &url.URL{
+		Scheme:     routeRuleURL.Scheme,
+		Host:       routeRuleURL.Host,
+		Path:       upstreamRequestURL.Path,
+		RawPath:    upstreamRequestURL.RawPath,
+		ForceQuery: upstreamRequestURL.ForceQuery,
+		RawQuery:   upstreamRequestURL.RawQuery,
+	}
+}
+
+func (handler *ProxyHandler) handleWebsocketRequest(routeEndpointURL *url.URL, upstreamWriter http.ResponseWriter, upstreamRequest *http.Request) {
+	websocketRequestBackend := func(r *http.Request) *url.URL {
+		return buildDownstreamRequestURL(r.URL, routeEndpointURL)
+	}
+	websocketProxy := websocketproxy.WebsocketProxy{
+		Backend:  websocketRequestBackend,
+		Upgrader: websocketproxy.DefaultUpgrader,
+	}
+	// disable CORS same-origin verification within proxy
+	websocketProxy.Upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+	websocketProxy.ServeHTTP(upstreamWriter, upstreamRequest)
+}
+
+func (handler *ProxyHandler) handleHTTPRequest(routeEndpointURL *url.URL, upstreamWriter http.ResponseWriter, upstreamRequest *http.Request) {
 	downstreamRequest, err := buildProxyRequest(upstreamRequest, routeEndpointURL)
 	if err != nil {
 		handleUnexpectedError(err, upstreamWriter)
@@ -88,38 +124,8 @@ func (handler *proxyHandler) handleProxyRequest(routeEndpointURL *url.URL, upstr
 	io.Copy(upstreamWriter, downstreamResponse.Body)
 }
 
-func (handler *proxyHandler) setDefaultHostURL(host string) error {
-	defaultHostURL, err := url.Parse(host)
-	if err != nil {
-		return fmt.Errorf("proxy: invalid default host: %s", err.Error())
-	}
-	if defaultHostURL.Host == "" {
-		return fmt.Errorf("proxy: default host is missing hostname or ip")
-	}
-	handler.defaultHostURL = defaultHostURL
-	return nil
-}
-
 func buildProxyRequest(upstreamRequest *http.Request, routeOverrideURL *url.URL) (*http.Request, error) {
-	var schemeOverride string
-	switch {
-	case routeOverrideURL.Scheme != "":
-		schemeOverride = routeOverrideURL.Scheme
-	case upstreamRequest.URL.Scheme != "":
-		schemeOverride = upstreamRequest.URL.Scheme
-	default:
-		schemeOverride = "http"
-	}
-
-	proxiedRequestURL := url.URL{
-		Scheme:     schemeOverride,
-		Host:       routeOverrideURL.Host,
-		Path:       upstreamRequest.URL.Path,
-		RawPath:    upstreamRequest.URL.RawPath,
-		ForceQuery: upstreamRequest.URL.ForceQuery,
-		RawQuery:   upstreamRequest.URL.RawQuery,
-	}
-
+	proxiedRequestURL := buildDownstreamRequestURL(upstreamRequest.URL, routeOverrideURL)
 	// Unsure how this might return an error as parts for proxiedRequestURL should be valid.
 	proxyRequest, err := http.NewRequest(upstreamRequest.Method, proxiedRequestURL.String(), upstreamRequest.Body)
 	if err != nil {

@@ -32,6 +32,13 @@ func (route RouteRule) validate() (*validRouteRule, error) {
 	if len(endpointURL.Host) == 0 {
 		return nil, fmt.Errorf("host is empty")
 	}
+	if endpointURL.Scheme == "" {
+		if route.WebsocketEnabled {
+			endpointURL.Scheme = "ws"
+		} else {
+			endpointURL.Scheme = "http"
+		}
+	}
 	validRoute := validRouteRule{
 		RouteRule: RouteRule{
 			Path:             route.Path,

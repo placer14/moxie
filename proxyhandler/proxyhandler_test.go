@@ -33,7 +33,7 @@ func TestResponseStatus(t *testing.T) {
 	expectedStatus := 999
 	httpmock.RegisterResponder("GET", "http://defaulthost/", httpmock.NewBytesResponder(expectedStatus, nil))
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
 	h, err := New("//defaulthost")
 	if err != nil {
 		t.Fatalf("Failed creating handler: %v", err.Error())
@@ -62,7 +62,7 @@ func TestRequestBodyTransfer(t *testing.T) {
 		return httpmock.NewStringResponse(200, ""), nil
 	})
 
-	req := httptest.NewRequest("POST", "http://defaulthost/", bytes.NewBuffer(expectedBody))
+	req := httptest.NewRequest("POST", "/", bytes.NewBuffer(expectedBody))
 
 	h, err := New("//defaulthost")
 	if err != nil {
@@ -77,7 +77,7 @@ func TestResponseBodyTransfer(t *testing.T) {
 
 	expectedBody := []byte("This is the expected body")
 	httpmock.RegisterResponder("GET", "http://defaulthost/", httpmock.NewBytesResponder(200, expectedBody))
-	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
 	recorder := httptest.NewRecorder()
 
 	h, err := New("//defaulthost")
@@ -109,7 +109,7 @@ func TestRequestHeaderTransfer(t *testing.T) {
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
 	req.Header = expectedHeader
 
 	h, err := New("//defaulthost")
@@ -135,7 +135,7 @@ func TestResponseHeaderTransfer(t *testing.T) {
 	})
 	httpmock.RegisterResponder("GET", "http://defaulthost/", mockResponder)
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "http://defaulthost/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
 
 	h, err := New("//defaulthost")
 	if err != nil {
@@ -165,7 +165,7 @@ func TestPostMethod(t *testing.T) {
 		}
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("POST", "http://defaulthost/", strings.NewReader(expectedPostBody))
+	req := httptest.NewRequest("POST", "/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
 	h, err := New("//defaulthost")

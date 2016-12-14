@@ -85,17 +85,13 @@ This is manages setting up the proxyHandler and handing it off to the
 golang http server. There are a few flag available to change its
 behavior:
 
-> `--port <valid port>`
+> `--port 8080`
 
 define which port the proxy should bind to on the local host
 
-> `--proxied-host <IP or FQDN>`
+> `--proxied-host "//default.hostname:8000"`
 
 define a new host to recieve proxied traffic when no routes match the request
-
-> `--proxied-port <valid port>`
-
-define a new port to recieve proxied traffic when no routes match the request
 
 ### httpecho
 
