@@ -15,12 +15,10 @@ var listenPort = flag.Int("port", 8080, "specify which port the proxy should lis
 var defaultHost = flag.String("proxied-host", defaultHostValue, "default host to recieve proxied traffic")
 var defaultPort = flag.Int("proxied-port", defaultPortValue, "default port to revieve proxied traffic")
 
-type route struct{ path, endpoint string }
-
-var routes = []route{
-	route{path: "/foo", endpoint: "//http_one:8001"},
-	route{path: "/bar", endpoint: "//http_two:8002"},
-	route{path: "/", endpoint: "//websocket_one"},
+var routes = []*proxyhandler.RouteRule{
+	&proxyhandler.RouteRule{Path: "/foo", Endpoint: "//http_one:8001"},
+	&proxyhandler.RouteRule{Path: "/bar", Endpoint: "//http_two:8002"},
+	&proxyhandler.RouteRule{Path: "/", Endpoint: "//websocket_one", WebsocketEnabled: true},
 }
 
 func main() {
@@ -33,9 +31,9 @@ func main() {
 	}
 
 	log.Println("Building routing table...")
-	for _, route := range routes {
-		log.Printf("\troute %s -> %s", route.path, route.endpoint)
-		if err := p.HandleEndpoint(route.path, route.endpoint); err != nil {
+	for _, r := range routes {
+		log.Printf("\troute %s -> %s", r.Path, r.Endpoint)
+		if err := p.HandleEndpoint(r); err != nil {
 			log.Fatalln(err.Error())
 		}
 	}

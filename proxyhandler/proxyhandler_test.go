@@ -24,7 +24,6 @@ func beforeTest() {
 func afterTest() {
 	log.SetOutput(os.Stderr)
 	httpmock.DeactivateAndReset()
-
 }
 
 func TestResponseStatus(t *testing.T) {
@@ -184,22 +183,25 @@ func TestProxyHandlesSpecificEndpoint(t *testing.T) {
 	defer afterTest()
 
 	success := false
-	httpmock.RegisterResponder("GET", "http://google.com/foo", func(r *http.Request) (*http.Response, error) {
+	httpmock.RegisterResponder("GET", "http://anotherhost/foo", func(r *http.Request) (*http.Response, error) {
 		success = true
 		return httpmock.NewStringResponse(200, ""), nil
 	})
-	req := httptest.NewRequest("GET", "http://defaulthost/foo", nil)
+	req := httptest.NewRequest("GET", "/foo", nil)
 	recorder := httptest.NewRecorder()
 
 	h, err := New("//defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
-	h.HandleEndpoint("/foo", "//google.com/")
+	route := &RouteRule{
+		Path:     "/foo",
+		Endpoint: "//anotherhost",
+	}
+	h.HandleEndpoint(route)
 	h.ServeHTTP(recorder, req)
-
 	if !success {
-		t.Error("Expected handler to direct request to google.com host")
+		t.Error("Expected handler to direct request to //anotherhost")
 	}
 }
 
@@ -243,22 +245,19 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 	beforeTest()
 	defer afterTest()
 
-	var actualError error
+	invalidRoute := &RouteRule{
+		Path:     "", // empty path makes route invalid
+		Endpoint: "//anotherhostname",
+	}
+	expectedError := "error handling endpoint"
 	h, _ := New("//defaulthost")
-	actualError = h.HandleEndpoint("", "http://anotherhostname")
-	if actualError == nil {
-		t.Fatal("expected empty endpoint to return error")
-	}
-	if !strings.Contains(actualError.Error(), "path is empty") {
-		t.Error("expected error to be empty path message")
-	}
 
-	actualError = h.HandleEndpoint("/foobar", "http://invalid.%2312.hostname")
+	actualError := h.HandleEndpoint(invalidRoute)
 	if actualError == nil {
-		t.Fatal("expected invalid override hostname to return error")
+		t.Fatal("expected invalid route to return error")
 	}
-	if !strings.Contains(actualError.Error(), "invalid endpoint url") {
-		t.Error("expected error to be invalid endpoint url message")
+	if !strings.Contains(actualError.Error(), expectedError) {
+		t.Errorf("Expected handle endpoint error\nActual: %v\nExpected: %v", actualError.Error(), expectedError)
 	}
 }
 
@@ -270,16 +269,15 @@ func BenchmarkRouteHandling(b *testing.B) {
 	if err != nil {
 		b.Fatal("unable to create proxy")
 	}
-	type route struct{ path, endpoint string }
-	routes := [3]route{
-		route{"/bazqux", "http://elsewhere.com"},
-		route{"/foo", "http://cnn.com"},
-		route{"/", "http://reddit.com"},
+	routes := []*RouteRule{
+		&RouteRule{Path: "/bazqux", Endpoint: "http://elsewhere.com"},
+		&RouteRule{Path: "/foo", Endpoint: "http://cnn.com"},
+		&RouteRule{Path: "/", Endpoint: "http://reddit.com"},
 	}
 	for _, r := range routes {
-		err = h.HandleEndpoint(r.path, r.endpoint)
+		err = h.HandleEndpoint(r)
 		if err != nil {
-			b.Fatalf("unable to handle endpoint: %v -> %v", r.path, r.endpoint)
+			b.Fatalf("unable to handle endpoint: %v -> %v", r.Path, r.Endpoint)
 		}
 	}
 
@@ -292,18 +290,18 @@ func BenchmarkRouteHandling(b *testing.B) {
 	pathRequests := make(map[string]int)
 	for i := 0; i < b.N; i++ {
 		n := rand.Int() % len(routes)
-		pathRequests[routes[n].path]++
-		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", routes[n].path, nil))
+		pathRequests[routes[n].Path]++
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", routes[n].Path, nil))
 	}
 
 	var result = []byte("\nPath     Requests     Hostname        Received Delta\n")
 	for _, route := range routes {
-		u, _ := url.Parse(route.endpoint)
-		pathHits := pathRequests[route.path]
+		u, _ := url.Parse(route.Endpoint)
+		pathHits := pathRequests[route.Path]
 		endpointHits := endpointRequests[u.Host]
-		result = append(result, fmt.Sprintf("% 8s  % 4v  %20s   % 4v    %04v  \n", route.path, pathHits, route.endpoint, endpointHits, pathHits-endpointHits)...)
+		result = append(result, fmt.Sprintf("% 8s  % 4v  %20s   % 4v    %04v  \n", route.Path, pathHits, route.Endpoint, endpointHits, pathHits-endpointHits)...)
 		if pathHits != endpointHits {
-			b.Errorf("Requests made to %s do not match requests received by %s\nExpected: %d\nActual %d\n", route.path, route.endpoint, pathHits, endpointHits)
+			b.Errorf("Requests made to %s do not match requests received by %s\nExpected: %d\nActual %d\n", route.Path, route.Endpoint, pathHits, endpointHits)
 		}
 	}
 	fmt.Println(string(result))

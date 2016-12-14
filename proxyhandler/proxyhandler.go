@@ -4,7 +4,6 @@ package proxyhandler
 
 import (
 	"fmt"
-	"github.com/placer14/moxie/route"
 	"io"
 	"log"
 	"net/http"
@@ -16,7 +15,7 @@ import (
 // prior to completing the request.
 type proxyHandler struct {
 	defaultHostURL *url.URL
-	routes         []*route.Route
+	routes         []*validRouteRule
 }
 
 // New creates allocates a zero-value proxyHandler and returns its pointer. It will
@@ -27,18 +26,18 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	handler.routes = make([]*route.Route, 0, 0)
+	handler.routes = make([]*validRouteRule, 0, 0)
 	return &handler, nil
 }
 
-// HandleEndpoint accepts a string `path` which is compared against incoming Requests.
-// If the `path` matches the incoming Request.RequestURI, the Host value from `endpoint`
-// is used in the resulting HTTP request instead. HandleEndpoint will return an error if
-// the route is created with invalid arguments
+// HandleEndpoint accepts a *RouteRule which is used to build a route table. The
+// RouteRules in this table are compared against incoming Requests as follows:
 //
-// Each endpoint is considered in the same order they are registered to `proxyHandler`.
+// If the `path` is found at the beginning of incoming Request.URL.Path, the Host value
+// from `endpoint` is used in the resulting HTTP request instead. HandleEndpoint will
+// return an error if the RouteRule is invalid
 //
-// Example:
+// The RouteRules are considered in the same order they are registered to `proxyHandler`:
 //
 // If you were to register two endpoints like so:
 //
@@ -46,13 +45,16 @@ func New(defaultProxiedHost string) (*proxyHandler, error) {
 // handler.HandleEndpoint("/foo", "www.test.com")
 //
 // A request for `/foo` against the server using this handler would have the request
-// proxied to `www.baz.com` instead of `www.test.com` because it was registered first.
-func (handler *proxyHandler) HandleEndpoint(path, endpoint string) error {
-	route, err := route.NewRoute(path, endpoint)
+// proxied to `www.baz.com` instead of `www.test.com`. This is because `/foo` contains
+// the first rule's path `/` at the beginning and was registered before the rule containing
+// the path `/foo`. It is recommended that you register more specific rules before rules
+// with less specificity.
+func (handler *proxyHandler) HandleEndpoint(route *RouteRule) error {
+	validRoute, err := route.validate()
 	if err != nil {
 		return fmt.Errorf("proxy: error handling endpoint: %s", err.Error())
 	}
-	handler.routes = append(handler.routes, route)
+	handler.routes = append(handler.routes, validRoute)
 	return nil
 }
 
@@ -129,11 +131,11 @@ func buildProxyRequest(upstreamRequest *http.Request, routeOverrideURL *url.URL)
 
 func handleUnexpectedError(err error, writer http.ResponseWriter) {
 	// No test coverage here, beware regressions within
-	log.Printf("http request: %s", err.Error())
+	log.Printf("proxy: http request error: %s", err.Error())
 	header := writer.Header()
-	header.Add("X-Error", fmt.Sprintf("Unexpected proxied request failure: %s", err.Error()))
+	header.Add("X-Error", fmt.Sprintf("unexpected error encountered: %s", err.Error()))
 	writer.WriteHeader(500)
-	writer.Write([]byte("Proxy error: " + err.Error()))
+	writer.Write([]byte("error: " + err.Error()))
 }
 
 func copyHeaders(destination, source http.Header) {
