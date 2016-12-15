@@ -7,18 +7,20 @@ import (
 
 // RouteRule represents a route which the proxyHandler can use to direct requests to
 // appropriate backend system. Path is the requested path in the URL received by the
-// proxyHandler. Endpoint is the backend host to direct the traffic to. WebsocketEnabled
-// instructs the proxyHandler to attempt to upgrade these connections to websockets
-// before establishing the connection to the Endpoint.
+// proxyHandler. Endpoint is the backend host to direct the traffic to.
 type RouteRule struct {
-	Path             string
-	Endpoint         string
-	WebsocketEnabled bool
+	Path     string
+	Endpoint string
 }
 
 type validRouteRule struct {
 	RouteRule
 	EndpointURL *url.URL
+}
+
+var validSchemes = map[string]struct{}{
+	"ws":   struct{}{},
+	"http": struct{}{},
 }
 
 func (route RouteRule) validate() (*validRouteRule, error) {
@@ -33,17 +35,15 @@ func (route RouteRule) validate() (*validRouteRule, error) {
 		return nil, fmt.Errorf("host is empty")
 	}
 	if endpointURL.Scheme == "" {
-		if route.WebsocketEnabled {
-			endpointURL.Scheme = "ws"
-		} else {
-			endpointURL.Scheme = "http"
-		}
+		return nil, fmt.Errorf("protocol scheme is empty")
+	}
+	if _, ok := validSchemes[endpointURL.Scheme]; !ok {
+		return nil, fmt.Errorf("unsupported scheme: %s", endpointURL.Scheme)
 	}
 	validRoute := validRouteRule{
 		RouteRule: RouteRule{
-			Path:             route.Path,
-			Endpoint:         route.Endpoint,
-			WebsocketEnabled: route.WebsocketEnabled,
+			Path:     route.Path,
+			Endpoint: route.Endpoint,
 		},
 		EndpointURL: endpointURL,
 	}

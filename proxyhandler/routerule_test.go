@@ -7,11 +7,9 @@ import (
 
 func TestRouteRuleValidateReturnsValidRouteRule(t *testing.T) {
 	route := RouteRule{
-		Path:             "/",
-		Endpoint:         "//hostname",
-		WebsocketEnabled: true,
+		Path:     "/",
+		Endpoint: "ws://hostname",
 	}
-	expectedEndpointURL := "ws://hostname"
 
 	validRoute, err := route.validate()
 	if err != nil {
@@ -24,44 +22,65 @@ func TestRouteRuleValidateReturnsValidRouteRule(t *testing.T) {
 	if validRoute.Endpoint != route.Endpoint {
 		t.Errorf("endpoint is not set\nexpected: %v\nreceived: %v", route.Endpoint, validRoute.Endpoint)
 	}
-	if validRoute.EndpointURL.String() != expectedEndpointURL {
-		t.Errorf("endpointURL is not set\nexpected: %v\nreceived: %v", expectedEndpointURL, validRoute.EndpointURL.String())
-	}
-	if validRoute.WebsocketEnabled != route.WebsocketEnabled {
-		t.Errorf("endpointURL is not set\nexpected: %v\nreceived: %v", route.WebsocketEnabled, validRoute.WebsocketEnabled)
-		t.Error("websocketEnabled is not set")
+	if validRoute.EndpointURL.String() != route.Endpoint {
+		t.Errorf("endpointURL is not set\nexpected: %v\nreceived: %v", route.Endpoint, validRoute.EndpointURL.String())
 	}
 }
 
-func TestValidateSetsDefaultHTTPScheme(t *testing.T) {
+func TestValidatesScheme(t *testing.T) {
 	expectedScheme := "http"
 	route := RouteRule{
-		Path:             "/",
-		Endpoint:         "//hostname",
-		WebsocketEnabled: false,
+		Path:     "/",
+		Endpoint: expectedScheme + "://hostname",
 	}
 	validRoute, err := route.validate()
 	if err != nil {
 		t.Fatal("expected valid route to be returned")
 	}
 	if validRoute.EndpointURL.Scheme != expectedScheme {
-		t.Errorf("unexpected non-websocket rule scheme\nexpected: %v\nreceived: %v", expectedScheme, validRoute.EndpointURL.Scheme)
+		t.Errorf("unexpected scheme\nexpected: %v\nreceived: %v", expectedScheme, validRoute.EndpointURL.Scheme)
+	}
+
+	expectedScheme = "ws"
+	route = RouteRule{
+		Path:     "/",
+		Endpoint: expectedScheme + "://hostname",
+	}
+	validRoute, err = route.validate()
+	if err != nil {
+		t.Fatal("expected valid route to be returned")
+	}
+	if validRoute.EndpointURL.Scheme != expectedScheme {
+		t.Errorf("unexpected scheme\nexpected: %v\nreceived: %v", expectedScheme, validRoute.EndpointURL.Scheme)
+	}
+
+	expectedError := "unsupported scheme"
+	invalidScheme := "invalid"
+	route = RouteRule{
+		Path:     "/",
+		Endpoint: invalidScheme + "://hostname",
+	}
+	validRoute, err = route.validate()
+	if err == nil {
+		t.Fatal("expected route to be invalid")
+	}
+	if !strings.Contains(err.Error(), expectedError) {
+		t.Errorf("expected error not found\nexpected: %v\nreceived: %v", expectedError, err.Error())
 	}
 }
 
-func TestValidateSetsDefaultWebsocketScheme(t *testing.T) {
-	expectedScheme := "ws"
+func TestValidateChecksSchemeIsNotEmpty(t *testing.T) {
+	expectedError := "protocol scheme is empty"
 	route := RouteRule{
-		Path:             "/",
-		Endpoint:         "//hostname",
-		WebsocketEnabled: true,
+		Path:     "/",
+		Endpoint: "//hostname",
 	}
-	validRoute, err := route.validate()
-	if err != nil {
-		t.Fatal("expected valid route to be returned")
+	_, err := route.validate()
+	if err == nil {
+		t.Fatal("expected route to be invalid")
 	}
-	if validRoute.EndpointURL.Scheme != expectedScheme {
-		t.Errorf("unexpected non-websocket rule scheme\nexpected: %v\nreceived: %v", expectedScheme, validRoute.EndpointURL.Scheme)
+	if !strings.Contains(err.Error(), expectedError) {
+		t.Errorf("expected error not found\nexpected: %v\nreceived: %v", expectedError, err.Error())
 	}
 }
 
@@ -69,9 +88,8 @@ func TestValidateChecksPathIsNotEmpty(t *testing.T) {
 	emptyPath := ""
 	expectedError := "path is empty"
 	route := RouteRule{
-		Path:             emptyPath,
-		Endpoint:         "//hostname",
-		WebsocketEnabled: false,
+		Path:     emptyPath,
+		Endpoint: "http://hostname",
 	}
 
 	_, err := route.validate()
@@ -85,11 +103,10 @@ func TestValidateChecksPathIsNotEmpty(t *testing.T) {
 
 func TestValidateChecksHostIsNotEmpty(t *testing.T) {
 	expectedError := "host is empty"
-	emptyHost := "//"
+	emptyHost := "http://"
 	route := RouteRule{
-		Path:             "/",
-		Endpoint:         emptyHost,
-		WebsocketEnabled: false,
+		Path:     "/",
+		Endpoint: emptyHost,
 	}
 
 	_, err := route.validate()
@@ -106,9 +123,8 @@ func TestValidateVerifiesEndpoint(t *testing.T) {
 	expectedError := "parsing endpoint"
 
 	r := RouteRule{
-		Path:             "/",
-		Endpoint:         invalidEndpoint,
-		WebsocketEnabled: false,
+		Path:     "/",
+		Endpoint: invalidEndpoint,
 	}
 	_, err := r.validate()
 	if err == nil {

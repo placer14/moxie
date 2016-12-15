@@ -34,7 +34,7 @@ func TestResponseStatus(t *testing.T) {
 	httpmock.RegisterResponder("GET", "http://defaulthost/", httpmock.NewBytesResponder(expectedStatus, nil))
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("Failed creating handler: %v", err.Error())
 	}
@@ -64,7 +64,7 @@ func TestRequestBodyTransfer(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/", bytes.NewBuffer(expectedBody))
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
@@ -80,7 +80,7 @@ func TestResponseBodyTransfer(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	recorder := httptest.NewRecorder()
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
@@ -112,7 +112,7 @@ func TestRequestHeaderTransfer(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header = expectedHeader
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
@@ -137,7 +137,7 @@ func TestResponseHeaderTransfer(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/", nil)
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
@@ -168,7 +168,7 @@ func TestPostMethod(t *testing.T) {
 	req := httptest.NewRequest("POST", "/", strings.NewReader(expectedPostBody))
 	recorder := httptest.NewRecorder()
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
@@ -190,13 +190,13 @@ func TestProxyHandlesSpecificEndpoint(t *testing.T) {
 	req := httptest.NewRequest("GET", "/foo", nil)
 	recorder := httptest.NewRecorder()
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		t.Fatalf("unable to create proxyhandler: %s", err.Error())
 	}
 	route := &RouteRule{
 		Path:     "/foo",
-		Endpoint: "//anotherhost",
+		Endpoint: "http://anotherhost",
 	}
 	h.HandleEndpoint(route)
 	h.ServeHTTP(recorder, req)
@@ -247,10 +247,10 @@ func TestHandleEndpointReturnsError(t *testing.T) {
 
 	invalidRoute := &RouteRule{
 		Path:     "", // empty path makes route invalid
-		Endpoint: "//anotherhostname",
+		Endpoint: "http://anotherhostname",
 	}
 	expectedError := "error handling endpoint"
-	h, _ := New("//defaulthost")
+	h, _ := New("http://defaulthost")
 
 	actualError := h.HandleEndpoint(invalidRoute)
 	if actualError == nil {
@@ -265,7 +265,7 @@ func BenchmarkRouteHandling(b *testing.B) {
 	beforeTest()
 	defer afterTest()
 
-	h, err := New("//defaulthost")
+	h, err := New("http://defaulthost")
 	if err != nil {
 		b.Fatal("unable to create proxy")
 	}

@@ -69,11 +69,12 @@ func (handler *ProxyHandler) HandleEndpoint(route *RouteRule) error {
 func (handler *ProxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	for _, routeMap := range handler.routes {
 		if strings.HasPrefix(request.URL.Path, routeMap.Path) {
-			if routeMap.WebsocketEnabled {
+			switch routeMap.EndpointURL.Scheme {
+			case "ws":
 				handler.handleWebsocketRequest(routeMap.EndpointURL, writer, request)
-				return
+			case "http":
+				handler.handleHTTPRequest(routeMap.EndpointURL, writer, request)
 			}
-			handler.handleHTTPRequest(routeMap.EndpointURL, writer, request)
 			return
 		}
 	}
