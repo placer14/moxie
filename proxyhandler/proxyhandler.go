@@ -21,59 +21,35 @@ type ProxyHandler struct {
 
 // New creates a valid ProxyHandler and returns its pointer. It will
 // return an error if the defaultRouteRule is invalid
-func New(defaultEndpoint string) (*ProxyHandler, error) {
-	route := &RouteRule{
-		Path:     "*", // this non-empty path will satisfy validation, but is not used for routing
-		Endpoint: defaultEndpoint,
-	}
-	validRoute, err := route.validate()
+func New(config *Configuration) (*ProxyHandler, error) {
+	validConfig, err := config.validate()
 	if err != nil {
-		return nil, fmt.Errorf("proxy: invalid default host: %s", err.Error())
+		return nil, fmt.Errorf("invalid configuration: %s", err.Error())
 	}
-	log.Printf("Creating proxy server pointed at default backend %s...", validRoute.EndpointURL.String())
-	handler := ProxyHandler{}
-	handler.defaultHostURL = validRoute.EndpointURL
-	handler.routes = make([]*validRouteRule, 0, 0)
+	handler := ProxyHandler{
+		defaultHostURL: validConfig.DefaultRoute,
+		routes:         validConfig.Routes,
+	}
+	handler.announceSetup()
 	return &handler, nil
 }
 
-// HandleEndpoint accepts a *RouteRule which is used to build a route table. The
-// RouteRules in this table are compared against incoming Requests as follows:
-//
-// If the `path` is found at the beginning of incoming Request.URL.Path, the Host value
-// from `endpoint` is used in the resulting HTTP request instead. HandleEndpoint will
-// return an error if the RouteRule is invalid
-//
-// The RouteRules are considered in the same order they are registered to `ProxyHandler`:
-//
-// If you were to register two endpoints like so:
-//
-// handler.HandleEndpoint(&RouteRule{ Path: "/", Endpoint: "//baz.com" })
-// handler.HandleEndpoint(&RouteRule{ Path: "/foo", Endpoint: "//test.com" })
-//
-// A request for `/foo` against the server using this handler would have the request
-// proxied to `baz.com` instead of `test.com`. This is because `/foo` contains
-// the first rule's path `/` at the beginning and was registered before the rule containing
-// the path `/foo`. It is recommended that you register more specific rules before rules
-// with less specificity.
-func (handler *ProxyHandler) HandleEndpoint(route *RouteRule) error {
-	validRoute, err := route.validate()
-	if err != nil {
-		return fmt.Errorf("proxy: error handling endpoint: %s", err.Error())
+func (handler *ProxyHandler) announceSetup() {
+	log.Println("New proxy created")
+	log.Printf("Default proxy backend %s", handler.defaultHostURL.String())
+	for _, route := range handler.routes {
+		log.Printf("\tRoute %s -> %s", route.Path, route.Endpoint)
 	}
-	log.Printf("\tAdding route %s -> %s", validRoute.Path, validRoute.EndpointURL.String())
-	handler.routes = append(handler.routes, validRoute)
-	return nil
 }
 
 func (handler *ProxyHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	for _, routeMap := range handler.routes {
-		if strings.HasPrefix(request.URL.Path, routeMap.Path) {
-			switch routeMap.EndpointURL.Scheme {
+	for _, route := range handler.routes {
+		if strings.HasPrefix(request.URL.Path, route.Path) {
+			switch route.EndpointURL.Scheme {
 			case "ws":
-				handler.handleWebsocketRequest(routeMap.EndpointURL, writer, request)
+				handler.handleWebsocketRequest(route.EndpointURL, writer, request)
 			case "http":
-				handler.handleHTTPRequest(routeMap.EndpointURL, writer, request)
+				handler.handleHTTPRequest(route.EndpointURL, writer, request)
 			}
 			return
 		}
